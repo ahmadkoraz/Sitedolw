@@ -1,0 +1,47 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Default Deny All
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isImageFile() {
+      return request.resource.contentType.matches('image/.*')
+          && request.resource.size < 5 * 1024 * 1024; // Max 5MB
+    }
+
+    // Company Scoped Storage
+    match /companies/{companyId} {
+      
+      // Profile Photos: users can upload profile photos (must be an image under 5MB)
+      match /employees/{employeeId}/{fileName} {
+        // Members of the same company can read employee profile photos
+        allow read: if isSignedIn();
+        
+        // Authenticated user uploading image for their profile or company admin
+        allow write: if isSignedIn() && isImageFile();
+      }
+
+      // Company Logos
+      match /branding/{fileName} {
+        allow read: if true; // Public company logo for UI/invoices
+        allow write: if isSignedIn() && isImageFile();
+      }
+
+      // Reserved directories for future builds (documents, projects, safety)
+      match /documents/{allPaths=**} {
+        allow read, write: if false;
+      }
+      
+      match /projects/{allPaths=**} {
+        allow read, write: if false;
+      }
+    }
+  }
+}

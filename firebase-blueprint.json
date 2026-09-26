@@ -1,0 +1,231 @@
+{
+  "entities": {
+    "Company": {
+      "title": "Company",
+      "description": "Tenant organization representing a construction or field service firm.",
+      "type": "object",
+      "properties": {
+        "companyId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 200 },
+        "legalName": { "type": "string", "maxLength": 255 },
+        "email": { "type": "string", "maxLength": 255 },
+        "phone": { "type": "string", "maxLength": 50 },
+        "address": { "type": "string", "maxLength": 255 },
+        "city": { "type": "string", "maxLength": 100 },
+        "province": { "type": "string", "maxLength": 100 },
+        "country": { "type": "string", "maxLength": 100 },
+        "postalCode": { "type": "string", "maxLength": 20 },
+        "timezone": { "type": "string", "maxLength": 100 },
+        "logoUrl": { "type": "string", "maxLength": 1024 },
+        "status": { "type": "string", "enum": ["active", "suspended", "trial", "inactive"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "createdBy": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["companyId", "name", "email", "status", "createdAt", "updatedAt", "createdBy"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User account identity linked to Firebase Auth UID and assigned to a company.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "companyId": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 255 },
+        "firstName": { "type": "string", "maxLength": 100 },
+        "lastName": { "type": "string", "maxLength": 100 },
+        "displayName": { "type": "string", "maxLength": 200 },
+        "phone": { "type": "string", "maxLength": 50 },
+        "photoUrl": { "type": "string", "maxLength": 1024 },
+        "role": { "type": "string", "enum": ["SUPER_ADMIN", "ADMIN", "PROJECT_MANAGER", "SUPERVISOR", "HR", "ACCOUNTING", "EMPLOYEE"] },
+        "status": { "type": "string", "enum": ["active", "inactive", "suspended", "pending"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "lastLoginAt": { "type": "string" }
+      },
+      "required": ["uid", "companyId", "email", "firstName", "lastName", "role", "status", "createdAt", "updatedAt"]
+    },
+    "Employee": {
+      "title": "Employee",
+      "description": "Workforce record within an organization for scheduling, job titles, and operational roles.",
+      "type": "object",
+      "properties": {
+        "employeeId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "companyId": { "type": "string", "maxLength": 128 },
+        "employeeNumber": { "type": "string", "maxLength": 50 },
+        "firstName": { "type": "string", "maxLength": 100 },
+        "lastName": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 255 },
+        "phone": { "type": "string", "maxLength": 50 },
+        "role": { "type": "string", "enum": ["SUPER_ADMIN", "ADMIN", "PROJECT_MANAGER", "SUPERVISOR", "HR", "ACCOUNTING", "EMPLOYEE"] },
+        "jobTitle": { "type": "string", "maxLength": 150 },
+        "department": { "type": "string", "maxLength": 100 },
+        "status": { "type": "string", "enum": ["active", "inactive", "suspended", "pending"] },
+        "hireDate": { "type": "string", "maxLength": 50 },
+        "profilePhotoUrl": { "type": "string", "maxLength": 1024 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["employeeId", "companyId", "employeeNumber", "firstName", "lastName", "email", "role", "status", "createdAt", "updatedAt"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "Construction or field operation project contract.",
+      "type": "object",
+      "properties": {
+        "projectId": { "type": "string", "maxLength": 128 },
+        "companyId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 200 },
+        "code": { "type": "string", "maxLength": 50 },
+        "description": { "type": "string", "maxLength": 1000 },
+        "status": { "type": "string", "enum": ["planning", "in_progress", "on_hold", "completed", "archived"] },
+        "clientName": { "type": "string", "maxLength": 200 },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "managerId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "createdBy": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["projectId", "companyId", "name", "code", "status", "createdAt", "updatedAt", "createdBy"]
+    },
+    "JobSite": {
+      "title": "JobSite",
+      "description": "Physical worksite location with GPS geofence boundary.",
+      "type": "object",
+      "properties": {
+        "jobSiteId": { "type": "string", "maxLength": 128 },
+        "companyId": { "type": "string", "maxLength": 128 },
+        "projectId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 200 },
+        "address": { "type": "string", "maxLength": 255 },
+        "city": { "type": "string", "maxLength": 100 },
+        "province": { "type": "string", "maxLength": 100 },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "radiusMeters": { "type": "number" },
+        "enforceGeofence": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["active", "inactive", "closed"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "createdBy": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["jobSiteId", "companyId", "projectId", "name", "address", "latitude", "longitude", "radiusMeters", "status", "createdAt", "updatedAt", "createdBy"]
+    },
+    "Shift": {
+      "title": "Shift",
+      "description": "Scheduled work shift assignment for workers.",
+      "type": "object",
+      "properties": {
+        "shiftId": { "type": "string", "maxLength": 128 },
+        "companyId": { "type": "string", "maxLength": 128 },
+        "projectId": { "type": "string", "maxLength": 128 },
+        "jobSiteId": { "type": "string", "maxLength": 128 },
+        "employeeId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 200 },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "scheduledHours": { "type": "number" },
+        "status": { "type": "string", "enum": ["scheduled", "in_progress", "completed", "cancelled", "absent"] },
+        "assignedBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["shiftId", "companyId", "projectId", "jobSiteId", "employeeId", "title", "startTime", "endTime", "status", "assignedBy", "createdAt", "updatedAt"]
+    },
+    "TimeEntry": {
+      "title": "TimeEntry",
+      "description": "Authoritative attendance timecard with purpose-limited GPS verification.",
+      "type": "object",
+      "properties": {
+        "timeEntryId": { "type": "string", "maxLength": 128 },
+        "companyId": { "type": "string", "maxLength": 128 },
+        "employeeId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "projectId": { "type": "string", "maxLength": 128 },
+        "jobSiteId": { "type": "string", "maxLength": 128 },
+        "clockInTime": { "type": "string" },
+        "clockOutTime": { "type": "string" },
+        "status": { "type": "string", "enum": ["clocked_in", "on_break", "clocked_out", "flagged"] },
+        "totalWorkMinutes": { "type": "number" },
+        "totalBreakMinutes": { "type": "number" },
+        "isSupervisorOverride": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["timeEntryId", "companyId", "employeeId", "userId", "projectId", "jobSiteId", "clockInTime", "status", "createdAt", "updatedAt"]
+    },
+    "Invitation": {
+      "title": "Invitation",
+      "description": "Company invitation record for onboarding team members with pre-assigned roles.",
+      "type": "object",
+      "properties": {
+        "invitationId": { "type": "string", "maxLength": 128 },
+        "companyId": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 255 },
+        "role": { "type": "string", "enum": ["SUPER_ADMIN", "ADMIN", "PROJECT_MANAGER", "SUPERVISOR", "HR", "ACCOUNTING", "EMPLOYEE"] },
+        "invitedBy": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["pending", "accepted", "expired", "revoked"] },
+        "expiresAt": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["invitationId", "companyId", "email", "role", "invitedBy", "status", "createdAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable security and compliance event tracking administrative actions.",
+      "type": "object",
+      "properties": {
+        "auditId": { "type": "string", "maxLength": 128 },
+        "companyId": { "type": "string", "maxLength": 128 },
+        "actorUserId": { "type": "string", "maxLength": 128 },
+        "actorRole": { "type": "string", "maxLength": 50 },
+        "action": { "type": "string", "maxLength": 100 },
+        "resourceType": { "type": "string", "maxLength": 100 },
+        "resourceId": { "type": "string", "maxLength": 128 },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["auditId", "companyId", "actorUserId", "actorRole", "action", "resourceType", "resourceId", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/companies/{companyId}": {
+      "schema": "Company",
+      "description": "Master company records isolated by companyId."
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles indexed by Firebase Auth UID."
+    },
+    "/companies/{companyId}/employees/{employeeId}": {
+      "schema": "Employee",
+      "description": "Workforce records scoped strictly under the company tenant."
+    },
+    "/companies/{companyId}/projects/{projectId}": {
+      "schema": "Project",
+      "description": "Construction projects scoped strictly under the company tenant."
+    },
+    "/companies/{companyId}/jobSites/{jobSiteId}": {
+      "schema": "JobSite",
+      "description": "Worksites and geofenced locations scoped strictly under the company tenant."
+    },
+    "/companies/{companyId}/shifts/{shiftId}": {
+      "schema": "Shift",
+      "description": "Scheduled worker shifts scoped strictly under the company tenant."
+    },
+    "/companies/{companyId}/timeEntries/{timeEntryId}": {
+      "schema": "TimeEntry",
+      "description": "Clock in/out attendance and break records scoped strictly under the company tenant."
+    },
+    "/companies/{companyId}/invitations/{invitationId}": {
+      "schema": "Invitation",
+      "description": "Team invitation records scoped strictly under the company tenant."
+    },
+    "/companies/{companyId}/auditLogs/{auditId}": {
+      "schema": "AuditLog",
+      "description": "Immutable compliance audit trail scoped strictly under company tenant."
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "SITEFLOW",
+  "description": "Construction Workforce & Field Operations Management Platform. Work. Track. Build.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

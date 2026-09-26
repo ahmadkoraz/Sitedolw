@@ -1,0 +1,304 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default Deny All
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Common Security Helper Functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function userExists() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userCompanyId() {
+      return userExists() ? userDoc().companyId : '';
+    }
+
+    function userRole() {
+      return userExists() ? userDoc().role : '';
+    }
+
+    function isMemberOfCompany(companyId) {
+      return isSignedIn() && userCompanyId() == companyId;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && userRole() == 'SUPER_ADMIN';
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (userRole() == 'ADMIN' || userRole() == 'SUPER_ADMIN');
+    }
+
+    function isProjectManager() {
+      return isSignedIn() && (userRole() == 'PROJECT_MANAGER' || isAdmin());
+    }
+
+    function isSupervisor() {
+      return isSignedIn() && (userRole() == 'SUPERVISOR' || isProjectManager());
+    }
+
+    function isAttendanceManager() {
+      return isSignedIn() && (userRole() in ['SUPER_ADMIN', 'ADMIN', 'PROJECT_MANAGER', 'SUPERVISOR', 'HR']);
+    }
+
+    // Company Validation
+    function isValidCompany(data) {
+      return data.keys().hasAll(['companyId', 'name', 'email', 'status', 'createdAt', 'updatedAt', 'createdBy']) &&
+             data.companyId is string && data.companyId.size() <= 128 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+             data.email is string && data.email.size() <= 255 &&
+             data.status in ['active', 'suspended', 'trial', 'inactive'] &&
+             data.createdBy is string && data.createdBy.size() <= 128;
+    }
+
+    // Companies Collection
+    match /companies/{companyId} {
+      // Members can read their own company
+      allow get: if isSignedIn() && (isMemberOfCompany(companyId) || request.auth.uid == resource.data.createdBy);
+      
+      // Onboarding: authenticated user creating new company
+      allow create: if isSignedIn() &&
+                    isValidId(companyId) &&
+                    request.resource.data.companyId == companyId &&
+                    request.resource.data.createdBy == request.auth.uid &&
+                    isValidCompany(request.resource.data);
+
+      // Only SUPER_ADMIN or ADMIN can update company profile, never change immutable IDs
+      allow update: if isSignedIn() &&
+                    isMemberOfCompany(companyId) &&
+                    isAdmin() &&
+                    isValidCompany(request.resource.data) &&
+                    request.resource.data.companyId == resource.data.companyId &&
+                    request.resource.data.createdBy == resource.data.createdBy &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+
+      allow delete: if false; // Deleting companies directly from client is forbidden
+
+      // Employees Subcollection
+      match /employees/{employeeId} {
+        // Employees can read their own record; Admins can read all company employees
+        allow get: if isSignedIn() && isMemberOfCompany(companyId) &&
+                   (isAdmin() || resource.data.userId == request.auth.uid);
+
+        allow list: if isSignedIn() && isMemberOfCompany(companyId) && isAdmin();
+
+        // Admins can create employees (only SUPER_ADMIN can create a SUPER_ADMIN employee)
+        // Authenticated user can create their own employee record if:
+        // 1. They are the company creator completing initial onboarding, OR
+        // 2. They are an invited employee accepting an invitation (strictly non-SUPER_ADMIN)
+        allow create: if isSignedIn() &&
+                      isValidId(employeeId) &&
+                      request.resource.data.companyId == companyId &&
+                      (
+                        (isMemberOfCompany(companyId) && isAdmin() && (request.resource.data.role != 'SUPER_ADMIN' || isSuperAdmin())) ||
+                        (request.resource.data.userId == request.auth.uid && request.auth.uid == get(/databases/$(database)/documents/companies/$(companyId)).data.createdBy) ||
+                        (request.resource.data.userId == request.auth.uid && request.resource.data.email == request.auth.token.email && request.resource.data.role != 'SUPER_ADMIN')
+                      );
+
+        // Admins can update employees (cannot escalate to SUPER_ADMIN unless actor is SUPER_ADMIN)
+        allow update: if isSignedIn() &&
+                      isMemberOfCompany(companyId) &&
+                      isAdmin() &&
+                      request.resource.data.companyId == resource.data.companyId &&
+                      request.resource.data.employeeId == resource.data.employeeId &&
+                      (request.resource.data.role == resource.data.role || isSuperAdmin() || request.resource.data.role != 'SUPER_ADMIN');
+
+        allow delete: if false; // Soft-delete / status deactivation enforced
+      }
+
+      // Invitations Subcollection
+      match /invitations/{invitationId} {
+        // Admins can view all company invitations; invited users can read their own invitation
+        allow get: if isSignedIn() && (
+          (isMemberOfCompany(companyId) && isAdmin()) ||
+          (resource.data.email == request.auth.token.email)
+        );
+
+        allow list: if isSignedIn() && isMemberOfCompany(companyId) && isAdmin();
+        
+        allow create: if isSignedIn() &&
+                      isMemberOfCompany(companyId) &&
+                      isAdmin() &&
+                      isValidId(invitationId) &&
+                      request.resource.data.companyId == companyId &&
+                      (request.resource.data.role != 'SUPER_ADMIN' || isSuperAdmin());
+
+        // Admins can manage invitations; invited user can mark their own pending invitation as accepted
+        allow update: if isSignedIn() && (
+          (isMemberOfCompany(companyId) && isAdmin() && request.resource.data.companyId == resource.data.companyId) ||
+          (
+            resource.data.email == request.auth.token.email &&
+            resource.data.status == 'pending' &&
+            request.resource.data.status == 'accepted' &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'acceptedAt', 'acceptedByUserId'])
+          )
+        );
+
+        allow delete: if isSignedIn() && isMemberOfCompany(companyId) && isAdmin();
+      }
+
+      // Audit Logs Subcollection (Strictly Append-Only & Immutable)
+      match /auditLogs/{auditId} {
+        // Only Admins / SuperAdmins can read audit trail
+        allow read: if isSignedIn() && isMemberOfCompany(companyId) && isAdmin();
+        
+        // Any authenticated action within company can append an audit record
+        allow create: if isSignedIn() &&
+                      isMemberOfCompany(companyId) &&
+                      isValidId(auditId) &&
+                      request.resource.data.companyId == companyId &&
+                      request.resource.data.actorUserId == request.auth.uid;
+
+        allow update, delete: if false; // Audit logs can NEVER be updated or deleted
+      }
+
+      // Projects Subcollection
+      match /projects/{projectId} {
+        allow read: if isSignedIn() && isMemberOfCompany(companyId);
+        
+        allow create: if isSignedIn() &&
+                      isMemberOfCompany(companyId) &&
+                      isProjectManager() &&
+                      isValidId(projectId) &&
+                      request.resource.data.companyId == companyId;
+
+        allow update: if isSignedIn() &&
+                      isMemberOfCompany(companyId) &&
+                      isProjectManager() &&
+                      request.resource.data.companyId == resource.data.companyId &&
+                      request.resource.data.projectId == resource.data.projectId;
+
+        allow delete: if false;
+      }
+
+      // Job Sites Subcollection
+      match /jobSites/{jobSiteId} {
+        allow read: if isSignedIn() && isMemberOfCompany(companyId);
+        
+        allow create: if isSignedIn() &&
+                      isMemberOfCompany(companyId) &&
+                      isProjectManager() &&
+                      isValidId(jobSiteId) &&
+                      request.resource.data.companyId == companyId;
+
+        allow update: if isSignedIn() &&
+                      isMemberOfCompany(companyId) &&
+                      isProjectManager() &&
+                      request.resource.data.companyId == resource.data.companyId &&
+                      request.resource.data.jobSiteId == resource.data.jobSiteId;
+
+        allow delete: if false;
+      }
+
+      // Shifts Subcollection
+      match /shifts/{shiftId} {
+        allow read: if isSignedIn() && isMemberOfCompany(companyId);
+        
+        allow create: if isSignedIn() &&
+                      isMemberOfCompany(companyId) &&
+                      isSupervisor() &&
+                      isValidId(shiftId) &&
+                      request.resource.data.companyId == companyId;
+
+        allow update: if isSignedIn() &&
+                      isMemberOfCompany(companyId) &&
+                      isSupervisor() &&
+                      request.resource.data.companyId == resource.data.companyId &&
+                      request.resource.data.shiftId == resource.data.shiftId;
+
+        allow delete: if false;
+      }
+
+      // Time Entries Subcollection (Authoritative Attendance)
+      match /timeEntries/{timeEntryId} {
+        // Workers read their own records; Supervisors and Admins read company records
+        allow get: if isSignedIn() && isMemberOfCompany(companyId) &&
+                   (resource.data.userId == request.auth.uid || isAttendanceManager());
+
+        allow list: if isSignedIn() && isMemberOfCompany(companyId) &&
+                    (isAttendanceManager() || request.auth.uid != null);
+
+        // Workers clock in for themselves, or supervisor override
+        allow create: if isSignedIn() &&
+                      isMemberOfCompany(companyId) &&
+                      isValidId(timeEntryId) &&
+                      request.resource.data.companyId == companyId &&
+                      (request.resource.data.userId == request.auth.uid || isSupervisor());
+
+        // Workers update their own active entry (e.g. breaks, clock out); Supervisors can adjust/override
+        allow update: if isSignedIn() &&
+                      isMemberOfCompany(companyId) &&
+                      request.resource.data.companyId == resource.data.companyId &&
+                      request.resource.data.timeEntryId == resource.data.timeEntryId &&
+                      (
+                        (resource.data.userId == request.auth.uid && request.resource.data.userId == resource.data.userId) ||
+                        isSupervisor()
+                      );
+
+        allow delete: if false;
+      }
+    }
+
+    // Users Collection (Indexed by Firebase Auth UID)
+    match /users/{userId} {
+      // User can read their own profile; Admins of the same company can read profiles of their employees
+      allow get: if isSignedIn() && (
+        request.auth.uid == userId ||
+        (isAdmin() && resource.data.companyId == userCompanyId())
+      );
+
+      allow list: if isSignedIn() && isAdmin();
+
+      // Onboarding create: user registers profile with their own uid
+      allow create: if isSignedIn() &&
+                    request.auth.uid == userId &&
+                    isValidId(userId) &&
+                    request.resource.data.uid == userId &&
+                    request.resource.data.email == request.auth.token.email &&
+                    // Forbid normal user self-assigning SUPER_ADMIN unless they are creating the new company
+                    (request.resource.data.role != 'SUPER_ADMIN' || !exists(/databases/$(database)/documents/companies/$(request.resource.data.companyId)));
+
+      // User updating own profile (can only change profile fields, never role or companyId)
+      allow update: if isSignedIn() && (
+        (
+          request.auth.uid == userId &&
+          request.resource.data.uid == resource.data.uid &&
+          request.resource.data.companyId == resource.data.companyId &&
+          request.resource.data.role == resource.data.role &&
+          request.resource.data.email == resource.data.email &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['firstName', 'lastName', 'displayName', 'phone', 'photoUrl', 'updatedAt', 'lastLoginAt'])
+        ) ||
+        (
+          // Admin can change employee status or non-SUPER_ADMIN role
+          isAdmin() &&
+          resource.data.companyId == userCompanyId() &&
+          request.resource.data.companyId == resource.data.companyId &&
+          request.resource.data.uid == resource.data.uid &&
+          (request.resource.data.role == resource.data.role || isSuperAdmin() || request.resource.data.role != 'SUPER_ADMIN')
+        )
+      );
+
+      allow delete: if false;
+    }
+
+    // Collection Group Query: Authenticated user querying their pending invitations
+    match /{path=**}/invitations/{invitationId} {
+      allow read: if isSignedIn() && resource.data.email == request.auth.token.email;
+    }
+  }
+}
