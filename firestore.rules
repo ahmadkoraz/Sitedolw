@@ -66,6 +66,28 @@ service cloud.firestore {
              data.createdBy is string && data.createdBy.size() <= 128;
     }
 
+    // P0-2 & P0-3: Time Entry Relational & Entity Validation
+    function isValidTimeEntryCreation(companyId, data) {
+      return (
+        // Identity consistency: User exists and belongs to this company
+        exists(/databases/$(database)/documents/users/$(data.userId)) &&
+        get(/databases/$(database)/documents/users/$(data.userId)).data.companyId == companyId &&
+        // Employee exists in this company
+        exists(/databases/$(database)/documents/companies/$(companyId)/employees/$(data.employeeId)) &&
+        get(/databases/$(database)/documents/companies/$(companyId)/employees/$(data.employeeId)).data.companyId == companyId &&
+        // Employee record userId matches data.userId
+        get(/databases/$(database)/documents/companies/$(companyId)/employees/$(data.employeeId)).data.userId == data.userId &&
+        // Project exists in this company
+        exists(/databases/$(database)/documents/companies/$(companyId)/projects/$(data.projectId)) &&
+        get(/databases/$(database)/documents/companies/$(companyId)/projects/$(data.projectId)).data.companyId == companyId &&
+        // Job site exists in this company
+        exists(/databases/$(database)/documents/companies/$(companyId)/jobSites/$(data.jobSiteId)) &&
+        get(/databases/$(database)/documents/companies/$(companyId)/jobSites/$(data.jobSiteId)).data.companyId == companyId &&
+        // Relational integrity: JobSite.projectId == data.projectId
+        get(/databases/$(database)/documents/companies/$(companyId)/jobSites/$(data.jobSiteId)).data.projectId == data.projectId
+      );
+    }
+
     // Companies Collection
     match /companies/{companyId} {
       // Members can read their own company, or creator during onboarding
@@ -127,6 +149,8 @@ service cloud.firestore {
                           exists(/databases/$(database)/documents/companies/$(companyId)/invitations/$(request.resource.data.invitationId)) &&
                           get(/databases/$(database)/documents/companies/$(companyId)/invitations/$(request.resource.data.invitationId)).data.email == request.auth.token.email &&
                           get(/databases/$(database)/documents/companies/$(companyId)/invitations/$(request.resource.data.invitationId)).data.status == 'pending' &&
+                          ('expiresAt' in get(/databases/$(database)/documents/companies/$(companyId)/invitations/$(request.resource.data.invitationId)).data) &&
+                          get(/databases/$(database)/documents/companies/$(companyId)/invitations/$(request.resource.data.invitationId)).data.expiresAt > request.time &&
                           request.resource.data.role == get(/databases/$(database)/documents/companies/$(companyId)/invitations/$(request.resource.data.invitationId)).data.role
                         )
                       );
@@ -148,14 +172,11 @@ service cloud.firestore {
                           request.resource.data.employeeNumber == resource.data.employeeNumber &&
                           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phone', 'address', 'city', 'emergencyContact', 'updatedAt', 'profilePhotoUrl'])
                         ) ||
-                        // Path 2: Admin updating employee (cannot escalate or demote SUPER_ADMIN unless actor is SUPER_ADMIN)
+                        // Path 2: Admin updating employee (P0-5: cannot escalate or touch SUPER_ADMIN unless actor is SUPER_ADMIN)
                         (
                           isAdmin() &&
-                          (
-                            request.resource.data.role == resource.data.role ||
-                            (isSuperAdmin() && request.resource.data.role == 'SUPER_ADMIN') ||
-                            (isAdmin() && request.resource.data.role != 'SUPER_ADMIN' && resource.data.role != 'SUPER_ADMIN')
-                          )
+                          (resource.data.role != 'SUPER_ADMIN' || isSuperAdmin()) &&
+                          (request.resource.data.role != 'SUPER_ADMIN' || isSuperAdmin())
                         )
                       );
 
@@ -178,14 +199,18 @@ service cloud.firestore {
                       isValidId(invitationId) &&
                       request.resource.data.companyId == companyId &&
                       request.resource.data.invitationId == invitationId &&
+                      ('expiresAt' in request.resource.data) &&
+                      request.resource.data.expiresAt > request.time &&
                       (request.resource.data.role != 'SUPER_ADMIN' || isSuperAdmin());
 
-        // Admins can manage invitations; invited user can mark their own pending invitation as accepted
+        // P0-1: Expiration & strict field boundary enforced server-side
         allow update: if isSignedIn() && (
           (isMemberOfCompany(companyId) && isAdmin() && request.resource.data.companyId == resource.data.companyId) ||
           (
-            resource.data.email == request.auth.token.email &&
             resource.data.status == 'pending' &&
+            ('expiresAt' in resource.data) &&
+            resource.data.expiresAt > request.time &&
+            resource.data.email == request.auth.token.email &&
             request.resource.data.status == 'accepted' &&
             request.resource.data.acceptedByUserId == request.auth.uid &&
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'acceptedAt', 'acceptedByUserId'])
@@ -251,22 +276,26 @@ service cloud.firestore {
       match /jobSites/{jobSiteId} {
         allow read: if isSignedIn() && isMemberOfCompany(companyId);
         
+        // P0-3: Project must exist in this company
         allow create: if isSignedIn() &&
                       isMemberOfCompany(companyId) &&
                       isProjectManager() &&
                       isValidId(jobSiteId) &&
                       request.resource.data.companyId == companyId &&
                       request.resource.data.jobSiteId == jobSiteId &&
-                      // Ensure referenced project belongs to the company
-                      exists(/databases/$(database)/documents/companies/$(companyId)/projects/$(request.resource.data.projectId));
+                      exists(/databases/$(database)/documents/companies/$(companyId)/projects/$(request.resource.data.projectId)) &&
+                      get(/databases/$(database)/documents/companies/$(companyId)/projects/$(request.resource.data.projectId)).data.companyId == companyId;
 
+        // P0-3: Project reference must remain consistent with company
         allow update: if isSignedIn() &&
                       isMemberOfCompany(companyId) &&
                       isProjectManager() &&
                       request.resource.data.companyId == resource.data.companyId &&
                       request.resource.data.jobSiteId == resource.data.jobSiteId &&
+                      request.resource.data.projectId == resource.data.projectId &&
                       request.resource.data.createdAt == resource.data.createdAt &&
-                      exists(/databases/$(database)/documents/companies/$(companyId)/projects/$(request.resource.data.projectId));
+                      exists(/databases/$(database)/documents/companies/$(companyId)/projects/$(request.resource.data.projectId)) &&
+                      get(/databases/$(database)/documents/companies/$(companyId)/projects/$(request.resource.data.projectId)).data.companyId == companyId;
 
         allow delete: if false;
       }
@@ -280,19 +309,32 @@ service cloud.firestore {
         allow list: if isSignedIn() && isMemberOfCompany(companyId) &&
                     (isSupervisor() || resource.data.assignedUserId == request.auth.uid || resource.data.employeeId == userDoc().uid);
         
+        // P0-3: Project, JobSite, and Employee integrity
         allow create: if isSignedIn() &&
                       isMemberOfCompany(companyId) &&
                       isSupervisor() &&
                       isValidId(shiftId) &&
                       request.resource.data.companyId == companyId &&
-                      request.resource.data.shiftId == shiftId;
+                      request.resource.data.shiftId == shiftId &&
+                      exists(/databases/$(database)/documents/companies/$(companyId)/projects/$(request.resource.data.projectId)) &&
+                      get(/databases/$(database)/documents/companies/$(companyId)/projects/$(request.resource.data.projectId)).data.companyId == companyId &&
+                      exists(/databases/$(database)/documents/companies/$(companyId)/jobSites/$(request.resource.data.jobSiteId)) &&
+                      get(/databases/$(database)/documents/companies/$(companyId)/jobSites/$(request.resource.data.jobSiteId)).data.companyId == companyId &&
+                      get(/databases/$(database)/documents/companies/$(companyId)/jobSites/$(request.resource.data.jobSiteId)).data.projectId == request.resource.data.projectId &&
+                      exists(/databases/$(database)/documents/companies/$(companyId)/employees/$(request.resource.data.employeeId)) &&
+                      get(/databases/$(database)/documents/companies/$(companyId)/employees/$(request.resource.data.employeeId)).data.companyId == companyId;
 
         allow update: if isSignedIn() &&
                       isMemberOfCompany(companyId) &&
                       isSupervisor() &&
                       request.resource.data.companyId == resource.data.companyId &&
                       request.resource.data.shiftId == resource.data.shiftId &&
-                      request.resource.data.createdAt == resource.data.createdAt;
+                      request.resource.data.createdAt == resource.data.createdAt &&
+                      exists(/databases/$(database)/documents/companies/$(companyId)/projects/$(request.resource.data.projectId)) &&
+                      get(/databases/$(database)/documents/companies/$(companyId)/projects/$(request.resource.data.projectId)).data.companyId == companyId &&
+                      exists(/databases/$(database)/documents/companies/$(companyId)/jobSites/$(request.resource.data.jobSiteId)) &&
+                      get(/databases/$(database)/documents/companies/$(companyId)/jobSites/$(request.resource.data.jobSiteId)).data.companyId == companyId &&
+                      get(/databases/$(database)/documents/companies/$(companyId)/jobSites/$(request.resource.data.jobSiteId)).data.projectId == request.resource.data.projectId;
 
         allow delete: if false;
       }
@@ -307,32 +349,46 @@ service cloud.firestore {
         allow list: if isSignedIn() && isMemberOfCompany(companyId) &&
                     (isAttendanceManager() || resource.data.userId == request.auth.uid);
 
-        // Workers clock in for themselves only, or supervisor override
+        // P0-2 & P0-3: Workers clock in for themselves only, or supervisor override; Relational integrity enforced
         allow create: if isSignedIn() &&
                       isMemberOfCompany(companyId) &&
                       isValidId(timeEntryId) &&
                       request.resource.data.companyId == companyId &&
                       request.resource.data.timeEntryId == timeEntryId &&
                       (request.resource.data.userId == request.auth.uid || isSupervisor()) &&
-                      exists(/databases/$(database)/documents/companies/$(companyId)/jobSites/$(request.resource.data.jobSiteId)) &&
-                      exists(/databases/$(database)/documents/companies/$(companyId)/projects/$(request.resource.data.projectId));
+                      isValidTimeEntryCreation(companyId, request.resource.data);
 
-        // Workers update only their own active entry (breaks, clock out); Supervisors can adjust
+        // P0-4: Strict field restrictions on both worker and supervisor updates; Immutable identity fields
         allow update: if isSignedIn() &&
                       isMemberOfCompany(companyId) &&
                       request.resource.data.companyId == resource.data.companyId &&
                       request.resource.data.timeEntryId == resource.data.timeEntryId &&
+                      request.resource.data.userId == resource.data.userId &&
+                      request.resource.data.employeeId == resource.data.employeeId &&
+                      request.resource.data.projectId == resource.data.projectId &&
+                      request.resource.data.jobSiteId == resource.data.jobSiteId &&
                       request.resource.data.createdAt == resource.data.createdAt &&
                       (
+                        // Worker updating their own active entry
                         (
                           resource.data.userId == request.auth.uid &&
-                          request.resource.data.userId == resource.data.userId &&
                           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
                             'status', 'breaks', 'totalBreakMinutes', 'totalWorkMinutes',
                             'clockOutTime', 'clockOutServerTimestamp', 'clockOutLocation', 'notes', 'updatedAt'
                           ])
                         ) ||
-                        isSupervisor()
+                        // Supervisor correcting operational attendance fields
+                        (
+                          isSupervisor() &&
+                          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                            'clockInTime', 'clockInServerTimestamp', 'clockInLocation',
+                            'clockOutTime', 'clockOutServerTimestamp', 'clockOutLocation',
+                            'breaks', 'totalBreakMinutes', 'totalWorkMinutes',
+                            'status', 'notes',
+                            'isSupervisorOverride', 'overrideReason', 'overriddenBy',
+                            'updatedAt'
+                          ])
+                        )
                       );
 
         allow delete: if false;
@@ -363,8 +419,9 @@ service cloud.firestore {
                       getAfter(/databases/$(database)/documents/companies/$(request.resource.data.companyId)).data.createdBy == request.auth.uid
                     );
 
-      // User updating own profile (can only change profile fields, never role, status, or companyId)
+      // P0-5 & TEST 18: User and Admin update rules with SUPER_ADMIN protection
       allow update: if isSignedIn() && (
+        // Branch 1: User updating own profile (can only change profile fields, never role, status, or companyId)
         (
           request.auth.uid == userId &&
           request.resource.data.uid == resource.data.uid &&
@@ -376,17 +433,21 @@ service cloud.firestore {
             'firstName', 'lastName', 'displayName', 'phone', 'photoUrl', 'updatedAt', 'lastLoginAt'
           ])
         ) ||
+        // Branch 2: Admin updating user record
         (
-          // Admin can update employee status or role (cannot grant SUPER_ADMIN unless actor is SUPER_ADMIN)
           isAdmin() &&
           resource.data.companyId == userCompanyId() &&
           request.resource.data.companyId == resource.data.companyId &&
           request.resource.data.uid == resource.data.uid &&
-          (
-            request.resource.data.role == resource.data.role ||
-            (isSuperAdmin() && request.resource.data.role == 'SUPER_ADMIN') ||
-            (isAdmin() && request.resource.data.role != 'SUPER_ADMIN' && resource.data.role != 'SUPER_ADMIN')
-          )
+          request.resource.data.email == resource.data.email &&
+          // P0-5: If target is SUPER_ADMIN, ONLY a SUPER_ADMIN can modify it
+          (resource.data.role != 'SUPER_ADMIN' || isSuperAdmin()) &&
+          // Non-SUPER_ADMIN cannot grant SUPER_ADMIN
+          (request.resource.data.role != 'SUPER_ADMIN' || isSuperAdmin()) &&
+          // Allowed admin updates
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'role', 'status', 'firstName', 'lastName', 'displayName', 'phone', 'photoUrl', 'updatedAt'
+          ])
         )
       );
 
@@ -399,4 +460,3 @@ service cloud.firestore {
     }
   }
 }
-

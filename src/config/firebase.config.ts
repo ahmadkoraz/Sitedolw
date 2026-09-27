@@ -4,6 +4,8 @@
  * Inspects environment variables and determines real-time backend readiness.
  */
 
+import appletConfig from '../../firebase-applet-config.json';
+
 export interface FirebaseClientConfig {
   apiKey: string;
   authDomain: string;
@@ -102,15 +104,39 @@ export function clearStoredFirebaseConfig(): void {
 }
 
 /**
+ * Extracts configuration from firebase-applet-config.json provisioned by AI Studio
+ */
+export function getAppletConfig(): FirebaseClientConfig | null {
+  try {
+    if (appletConfig && appletConfig.apiKey && appletConfig.projectId) {
+      return {
+        apiKey: appletConfig.apiKey,
+        authDomain: appletConfig.authDomain || `${appletConfig.projectId}.firebaseapp.com`,
+        projectId: appletConfig.projectId,
+        storageBucket: appletConfig.storageBucket || `${appletConfig.projectId}.appspot.com`,
+        messagingSenderId: appletConfig.messagingSenderId || '',
+        appId: appletConfig.appId || '',
+        measurementId: appletConfig.measurementId || undefined,
+        firestoreDatabaseId: appletConfig.firestoreDatabaseId || undefined,
+      };
+    }
+  } catch (err) {
+    console.warn('Failed to parse applet Firebase config', err);
+  }
+  return null;
+}
+
+/**
  * Resolves active configuration
  */
 export function resolveFirebaseConfig(): {
   config: FirebaseClientConfig | null;
   status: FirebaseConnectionStatus;
 } {
+  const appletConfigResolved = getAppletConfig();
   const envConfig = getFirebaseConfigFromEnv();
   const storedConfig = getStoredFirebaseConfig();
-  const activeConfig = envConfig || storedConfig;
+  const activeConfig = appletConfigResolved || envConfig || storedConfig;
 
   const requiredKeys: (keyof FirebaseClientConfig)[] = [
     'apiKey',

@@ -290,7 +290,7 @@ export const authService = {
     const code = (err as { code?: string })?.code || '';
 
     if (code === 'auth/configuration-not-found' || message.includes('auth/configuration-not-found')) {
-      return 'Firebase Authentication is not enabled for project sitefolw. In the Firebase Console, go to Authentication > Sign-in method, click "Get started", and enable Email/Password (and Google).';
+      return 'Google Sign-In is not enabled on this Firebase project. Please sign in or register with your email and password below.';
     }
     if (code === 'auth/invalid-email' || message.includes('auth/invalid-email')) return 'Invalid email address format.';
     if (

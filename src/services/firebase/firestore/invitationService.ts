@@ -15,6 +15,7 @@ import {
   collectionGroup,
   query,
   where,
+  Timestamp,
 } from 'firebase/firestore';
 import { db, firebaseStatus } from '../firebaseApp';
 import { handleFirestoreError, OperationType } from '../errorHandler';
@@ -26,6 +27,20 @@ import type { AuthSessionUser } from '../auth/authService';
 
 const SANDBOX_INVITES_KEY = 'siteflow_sandbox_invitations';
 
+function mapInvitationDoc(raw: Record<string, unknown>): Invitation {
+  const expiresAt =
+    raw.expiresAt && typeof raw.expiresAt === 'object' && 'toDate' in raw.expiresAt && typeof (raw.expiresAt as { toDate: () => Date }).toDate === 'function'
+      ? (raw.expiresAt as { toDate: () => Date }).toDate().toISOString()
+      : typeof raw.expiresAt === 'string'
+      ? raw.expiresAt
+      : new Date().toISOString();
+
+  return {
+    ...raw,
+    expiresAt,
+  } as Invitation;
+}
+
 export const invitationService = {
   /**
    * Fetch company invitations (Admin view)
@@ -36,7 +51,7 @@ export const invitationService = {
       try {
         const ref = collection(db, 'companies', companyId, 'invitations');
         const snap = await getDocs(ref);
-        return snap.docs.map((d) => d.data() as Invitation);
+        return snap.docs.map((d) => mapInvitationDoc(d.data()));
       } catch (err) {
         handleFirestoreError(err, OperationType.LIST, path);
       }
@@ -60,7 +75,7 @@ export const invitationService = {
         const ref = doc(db, 'companies', companyId, 'invitations', invitationId);
         const snap = await getDoc(ref);
         if (snap.exists()) {
-          return snap.data() as Invitation;
+          return mapInvitationDoc(snap.data());
         }
         return null;
       } catch (err) {
@@ -111,7 +126,7 @@ export const invitationService = {
           where('status', '==', 'pending')
         );
         const snap = await getDocs(q);
-        const results = snap.docs.map((d) => d.data() as Invitation);
+        const results = snap.docs.map((d) => mapInvitationDoc(d.data()));
         return results;
       } catch (err) {
         console.warn('[SITEFLOW] Collection group invitation query notice:', err);
@@ -142,7 +157,8 @@ export const invitationService = {
     }
 
     const invitationId = `inv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days
+    const expiresAtDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    const expiresAt = expiresAtDate.toISOString();
 
     const invitation: Invitation = {
       invitationId,
@@ -160,7 +176,10 @@ export const invitationService = {
       const path = `companies/${params.companyId}/invitations/${invitationId}`;
       try {
         const ref = doc(db, 'companies', params.companyId, 'invitations', invitationId);
-        await setDoc(ref, invitation);
+        await setDoc(ref, {
+          ...invitation,
+          expiresAt: Timestamp.fromDate(expiresAtDate),
+        });
       } catch (err) {
         handleFirestoreError(err, OperationType.CREATE, path);
       }
