@@ -156,6 +156,7 @@ export interface UserProfile {
 export interface Employee {
   employeeId: string;
   userId?: string;
+  invitationId?: string;
   companyId: string;
   employeeNumber: string;
   firstName: string;
@@ -296,6 +297,7 @@ export interface Shift {
   projectId: string;
   jobSiteId: string;
   employeeId: string;
+  assignedUserId?: string;
   title: string;
   startTime: string; // ISO string
   endTime: string;   // ISO string

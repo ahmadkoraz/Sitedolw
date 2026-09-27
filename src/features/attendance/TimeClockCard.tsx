@@ -64,7 +64,7 @@ export const TimeClockCard: React.FC<TimeClockCardProps> = ({ onAttendanceChange
       const [projList, siteList, currentActive] = await Promise.all([
         projectService.getProjectsByCompany(company.companyId),
         jobSiteService.getJobSitesByCompany(company.companyId),
-        attendanceService.getActiveTimeEntry(company.companyId, userProfile.uid),
+        user ? attendanceService.getActiveTimeEntry(company.companyId, { userId: user.uid, employeeId: userProfile.uid }) : Promise.resolve(null),
       ]);
 
       setProjects(projList);

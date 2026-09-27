@@ -61,11 +61,14 @@ export const AttendanceHistory: React.FC<AttendanceHistoryProps> = ({
     setError(null);
     try {
       const [allEntries, allEmployees, allProjects, allSites] = await Promise.all([
-        // If regular employee, only load their own records
+        // If regular employee, only load their own records strictly by userId
         isSupervisorOrAdmin
           ? attendanceService.getTimeEntries(company.companyId)
-          : attendanceService.getTimeEntries(company.companyId, { employeeId: userProfile?.uid }),
-        employeeService.getEmployeesByCompany(company.companyId),
+          : (user?.uid ? attendanceService.getTimeEntries(company.companyId, { userId: user.uid }) : Promise.resolve([])),
+        // Regular employees cannot list entire workforce directory; only managers/admins can
+        isSupervisorOrAdmin
+          ? employeeService.getEmployeesByCompany(company.companyId)
+          : Promise.resolve([]),
         projectService.getProjectsByCompany(company.companyId),
         jobSiteService.getJobSitesByCompany(company.companyId),
       ]);
@@ -79,7 +82,7 @@ export const AttendanceHistory: React.FC<AttendanceHistoryProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [company, isSupervisorOrAdmin, userProfile?.uid]);
+  }, [company, isSupervisorOrAdmin, user?.uid]);
 
   useEffect(() => {
     loadData();

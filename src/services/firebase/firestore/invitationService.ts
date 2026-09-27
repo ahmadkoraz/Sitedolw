@@ -11,13 +11,14 @@ import {
   getDocs,
   setDoc,
   updateDoc,
+  writeBatch,
   collectionGroup,
   query,
   where,
 } from 'firebase/firestore';
 import { db, firebaseStatus } from '../firebaseApp';
 import { handleFirestoreError, OperationType } from '../errorHandler';
-import type { Invitation, UserRole, UserProfile, Employee } from '../../../types';
+import type { Invitation, UserRole, UserProfile, Employee, AuditLog } from '../../../types';
 import { userService } from './userService';
 import { employeeService } from './employeeService';
 import { auditService } from './auditService';
@@ -206,6 +207,8 @@ export const invitationService = {
 
     const timestamp = new Date().toISOString();
     const displayName = `${firstName.trim()} ${lastName.trim()}`.trim() || user.displayName || 'Team Member';
+    const auditId = `aud_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const empId = `emp_${user.uid.slice(0, 8)}`;
 
     // 1. Create User Profile with authoritative invited role (never auto-SUPER_ADMIN)
     const newProfile: UserProfile = {
@@ -222,13 +225,12 @@ export const invitationService = {
       updatedAt: timestamp,
       lastLoginAt: timestamp,
     };
-    await userService.createUserProfile(newProfile);
 
-    // 2. Create Employee workforce record
-    const empId = `emp_${user.uid.slice(0, 8)}`;
+    // 2. Create Employee workforce record linked to invitation
     const employeeRecord: Employee = {
       employeeId: empId,
       userId: user.uid,
+      invitationId: invitation.invitationId,
       companyId: invitation.companyId,
       employeeNumber: `EMP-${Date.now().toString().slice(-4)}`,
       firstName: firstName.trim(),
@@ -242,22 +244,50 @@ export const invitationService = {
       createdAt: timestamp,
       updatedAt: timestamp,
     };
-    await employeeService.createEmployee(invitation.companyId, employeeRecord);
 
-    // 3. Mark invitation accepted
+    // 3. Prepare Audit Log Record
+    const auditEvent: AuditLog = {
+      auditId,
+      companyId: invitation.companyId,
+      actorUserId: user.uid,
+      actorRole: invitation.role,
+      action: 'INVITATION_ACCEPTED',
+      resourceType: 'invitation',
+      resourceId: invitation.invitationId,
+      timestamp,
+      metadata: {
+        recipientEmail: user.email,
+        roleAssigned: invitation.role,
+      },
+    };
+
+    // 4. Execute Atomic Batch Mutation
     if (db && firebaseStatus.isConfigured) {
-      const path = `companies/${invitation.companyId}/invitations/${invitation.invitationId}`;
       try {
-        const ref = doc(db, 'companies', invitation.companyId, 'invitations', invitation.invitationId);
-        await updateDoc(ref, {
+        const batch = writeBatch(db);
+        const userRef = doc(db, 'users', user.uid);
+        const empRef = doc(db, 'companies', invitation.companyId, 'employees', empId);
+        const invRef = doc(db, 'companies', invitation.companyId, 'invitations', invitation.invitationId);
+        const auditRef = doc(db, 'companies', invitation.companyId, 'auditLogs', auditId);
+
+        batch.set(userRef, newProfile);
+        batch.set(empRef, employeeRecord);
+        batch.update(invRef, {
           status: 'accepted',
           acceptedAt: timestamp,
           acceptedByUserId: user.uid,
         });
+        batch.set(auditRef, auditEvent);
+
+        await batch.commit();
       } catch (err) {
-        console.warn(`[SITEFLOW] Non-fatal: could not update invitation doc status at ${path}:`, err);
+        handleFirestoreError(err, OperationType.WRITE, `companies/${invitation.companyId}/invitations/${invitation.invitationId}`);
       }
     } else {
+      // Sandbox development fallback: update all local states synchronously
+      await userService.createUserProfile(newProfile);
+      await employeeService.createEmployee(invitation.companyId, employeeRecord);
+
       const raw = localStorage.getItem(SANDBOX_INVITES_KEY);
       if (raw) {
         let list: Invitation[] = JSON.parse(raw);
@@ -268,10 +298,7 @@ export const invitationService = {
         );
         localStorage.setItem(SANDBOX_INVITES_KEY, JSON.stringify(list));
       }
-    }
 
-    // 4. Record Audit Log
-    try {
       await auditService.logEvent({
         companyId: invitation.companyId,
         actorUserId: user.uid,
@@ -284,10 +311,9 @@ export const invitationService = {
           roleAssigned: invitation.role,
         },
       });
-    } catch (auditErr) {
-      console.warn('[SITEFLOW] Non-fatal audit log notice:', auditErr);
     }
   },
+
 
   /**
    * Revoke an invitation

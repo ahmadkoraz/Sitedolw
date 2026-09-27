@@ -28,6 +28,7 @@ export interface AuthSessionUser {
 
 // Local storage session key for sandbox/dev-mode simulation when Firebase is not connected
 const SANDBOX_AUTH_KEY = 'siteflow_sandbox_auth_user';
+const isDevEnvironment = Boolean(import.meta.env.DEV);
 
 export const authService = {
   /**
@@ -67,7 +68,14 @@ export const authService = {
         }
       });
     } else {
-      // Sandbox mode: Read from localStorage
+      // Sandbox mode is strictly restricted to development environments
+      if (!isDevEnvironment) {
+        console.error('[SITEFLOW] Real Firebase credentials required in production builds. Demo auth disabled.');
+        callback(null);
+        return () => {};
+      }
+
+      // Dev-only Sandbox: Read from localStorage
       const checkLocal = () => {
         try {
           const raw = localStorage.getItem(SANDBOX_AUTH_KEY);
@@ -104,6 +112,11 @@ export const authService = {
         throw new Error(this.mapAuthError(err));
       }
     } else {
+      // Strictly prevent mock/sandbox authentication in production builds
+      if (!isDevEnvironment) {
+        throw new Error('Production security error: Firebase Authentication is required. Sandbox authentication is disabled in production builds.');
+      }
+
       // Sandbox development mode
       if (!email.includes('@')) throw new Error('Please enter a valid email address.');
       if (pass.length < 6) throw new Error('Password must be at least 6 characters.');
@@ -146,6 +159,10 @@ export const authService = {
         throw new Error(this.mapAuthError(err));
       }
     } else {
+      if (!isDevEnvironment) {
+        throw new Error('Production security error: Firebase Authentication is required. Registration is disabled without active Firebase credentials.');
+      }
+
       // Sandbox development mode
       if (!email.includes('@')) throw new Error('Please enter a valid email address.');
       if (pass.length < 6) throw new Error('Password must be at least 6 characters.');
@@ -191,6 +208,10 @@ export const authService = {
         throw new Error(this.mapAuthError(err));
       }
     } else {
+      if (!isDevEnvironment) {
+        throw new Error('Production security error: Google sign-in requires active Firebase Authentication. Mock sign-in is disabled in production.');
+      }
+
       // Sandbox development mode only (when Firebase is unconfigured)
       const user: AuthSessionUser = {
         uid: 'sandbox_usr_demo',
@@ -204,6 +225,7 @@ export const authService = {
       return user;
     }
   },
+
 
   /**
    * Safe Redirect-based Google Authentication fallback

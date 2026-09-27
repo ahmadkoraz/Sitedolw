@@ -109,6 +109,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
     try {
       const shiftId = initialShift?.shiftId || `shf_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
       const timestamp = new Date().toISOString();
+      const assignedEmp = employees.find((e) => e.employeeId === employeeId);
 
       const shiftData: Shift = {
         shiftId,
@@ -116,6 +117,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
         projectId,
         jobSiteId,
         employeeId,
+        assignedUserId: assignedEmp?.userId || initialShift?.assignedUserId,
         title: title.trim(),
         startTime: new Date(startTime).toISOString(),
         endTime: new Date(endTime).toISOString(),

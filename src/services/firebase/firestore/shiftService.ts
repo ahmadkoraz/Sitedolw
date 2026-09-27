@@ -29,6 +29,7 @@ export const shiftService = {
     companyId: string,
     filters?: {
       employeeId?: string;
+      assignedUserId?: string;
       projectId?: string;
       jobSiteId?: string;
       status?: ShiftStatus;
@@ -39,6 +40,7 @@ export const shiftService = {
       try {
         const ref = collection(db, 'companies', companyId, 'shifts');
         const constraints = [];
+        if (filters?.assignedUserId) constraints.push(where('assignedUserId', '==', filters.assignedUserId));
         if (filters?.employeeId) constraints.push(where('employeeId', '==', filters.employeeId));
         if (filters?.projectId) constraints.push(where('projectId', '==', filters.projectId));
         if (filters?.jobSiteId) constraints.push(where('jobSiteId', '==', filters.jobSiteId));
@@ -58,6 +60,7 @@ export const shiftService = {
         return all
           .filter((s) => {
             if (s.companyId !== companyId) return false;
+            if (filters?.assignedUserId && s.assignedUserId !== filters.assignedUserId) return false;
             if (filters?.employeeId && s.employeeId !== filters.employeeId) return false;
             if (filters?.projectId && s.projectId !== filters.projectId) return false;
             if (filters?.jobSiteId && s.jobSiteId !== filters.jobSiteId) return false;

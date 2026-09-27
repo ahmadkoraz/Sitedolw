@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { doc, writeBatch } from 'firebase/firestore';
+import { db, firebaseStatus } from '../../services/firebase/firebaseApp';
 import { useAuth } from '../auth/AuthContext';
 import { companyService } from '../../services/firebase/firestore/companyService';
 import { userService } from '../../services/firebase/firestore/userService';
@@ -6,7 +8,7 @@ import { employeeService } from '../../services/firebase/firestore/employeeServi
 import { auditService } from '../../services/firebase/firestore/auditService';
 import { invitationService } from '../../services/firebase/firestore/invitationService';
 import { SiteflowLogo } from '../../components/common/SiteflowLogo';
-import type { Company, UserProfile, Employee, Invitation } from '../../types';
+import type { Company, UserProfile, Employee, Invitation, AuditLog } from '../../types';
 import {
   Building2,
   MapPin,
@@ -319,18 +321,52 @@ export const OnboardingFlow: React.FC = () => {
       };
       await employeeService.createEmployee(companyId, employeeRecord);
 
-      // 4. Record Audit Log Event for Company Initialization
-      await auditService.logEvent({
+      // 4. Prepare Audit Log Event for Company Initialization
+      const auditId = `aud_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const auditLogEvent: AuditLog = {
+        auditId,
         companyId,
         actorUserId: user.uid,
         actorRole: 'SUPER_ADMIN',
         action: 'COMPANY_CREATED',
         resourceType: 'company',
         resourceId: companyId,
+        timestamp,
         metadata: {
-          note: 'Company organization established via Step 4 Onboarding flow',
+          note: 'Company organization established via atomic onboarding flow',
         },
-      });
+      };
+
+      // 5. Commit Atomically to prevent orphaned or partial records
+      if (db && firebaseStatus.isConfigured) {
+        const batch = writeBatch(db);
+        const compRef = doc(db, 'companies', companyId);
+        const userRef = doc(db, 'users', user.uid);
+        const empRef = doc(db, 'companies', companyId, 'employees', employeeRecord.employeeId);
+        const auditRef = doc(db, 'companies', companyId, 'auditLogs', auditId);
+
+        batch.set(compRef, newCompany);
+        batch.set(userRef, userProfile);
+        batch.set(empRef, employeeRecord);
+        batch.set(auditRef, auditLogEvent);
+
+        await batch.commit();
+      } else {
+        await companyService.createCompany(newCompany);
+        await userService.createUserProfile(userProfile);
+        await employeeService.createEmployee(companyId, employeeRecord);
+        await auditService.logEvent({
+          companyId,
+          actorUserId: user.uid,
+          actorRole: 'SUPER_ADMIN',
+          action: 'COMPANY_CREATED',
+          resourceType: 'company',
+          resourceId: companyId,
+          metadata: {
+            note: 'Company organization established via onboarding flow',
+          },
+        });
+      }
 
       // Move to Step 4 Confirmation
       setStep(4);

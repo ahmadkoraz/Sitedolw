@@ -11,30 +11,74 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    function isImageFile() {
-      return request.resource.contentType.matches('image/.*')
-          && request.resource.size < 5 * 1024 * 1024; // Max 5MB
+    function isSafeImage() {
+      return request.resource.contentType.matches('image/(jpeg|png|webp|gif)')
+          && !request.resource.contentType.matches('.*(executable|script|html|svg).*')
+          && request.resource.size > 0
+          && request.resource.size <= 5 * 1024 * 1024; // Max 5MB
+    }
+
+    function isValidFileName(name) {
+      return name.size() > 0 && name.size() <= 128 && name.matches('^[a-zA-Z0-9_\\-\\.]+$');
+    }
+
+    function userDoc() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function userCompanyId() {
+      return firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) ? userDoc().companyId : '';
+    }
+
+    function userRole() {
+      return firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) ? userDoc().role : '';
+    }
+
+    function isMemberOfCompany(companyId) {
+      return isSignedIn() && userCompanyId() == companyId;
+    }
+
+    function isAdmin(companyId) {
+      return isMemberOfCompany(companyId) && (userRole() == 'ADMIN' || userRole() == 'SUPER_ADMIN');
+    }
+
+    function isEmployeeSelf(companyId, employeeId) {
+      return isMemberOfCompany(companyId) && (
+        employeeId == request.auth.uid ||
+        (
+          firestore.exists(/databases/(default)/documents/companies/$(companyId)/employees/$(employeeId)) &&
+          firestore.get(/databases/(default)/documents/companies/$(companyId)/employees/$(employeeId)).data.userId == request.auth.uid
+        )
+      );
     }
 
     // Company Scoped Storage
     match /companies/{companyId} {
       
-      // Profile Photos: users can upload profile photos (must be an image under 5MB)
+      // Profile Photos: users can upload profile photos (must be safe image under 5MB)
       match /employees/{employeeId}/{fileName} {
-        // Members of the same company can read employee profile photos
-        allow read: if isSignedIn();
+        // Members of the same company can view employee profile photos
+        allow read: if isSignedIn() && isMemberOfCompany(companyId);
         
-        // Authenticated user uploading image for their profile or company admin
-        allow write: if isSignedIn() && isImageFile();
+        // Employee may upload only their own profile photo, or company Admin
+        allow write: if isSignedIn() &&
+                        isValidFileName(fileName) &&
+                        isSafeImage() &&
+                        (isEmployeeSelf(companyId, employeeId) || isAdmin(companyId));
       }
 
-      // Company Logos
+      // Company Branding
       match /branding/{fileName} {
-        allow read: if true; // Public company logo for UI/invoices
-        allow write: if isSignedIn() && isImageFile();
+        // Public read for branding/logo
+        allow read: if true;
+        // Only authorized company Admin can write company branding
+        allow write: if isSignedIn() &&
+                        isValidFileName(fileName) &&
+                        isSafeImage() &&
+                        isAdmin(companyId);
       }
 
-      // Reserved directories for future builds (documents, projects, safety)
+      // Explicitly denied directories
       match /documents/{allPaths=**} {
         allow read, write: if false;
       }
@@ -42,6 +86,11 @@ service firebase.storage {
       match /projects/{allPaths=**} {
         allow read, write: if false;
       }
+
+      match /safety/{allPaths=**} {
+        allow read, write: if false;
+      }
     }
   }
 }
+

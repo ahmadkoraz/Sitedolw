@@ -53,8 +53,10 @@ export const ShiftScheduleView: React.FC = () => {
       const [shiftList, empList, projList, siteList] = await Promise.all([
         canManageShifts
           ? shiftService.getShiftsByCompany(company.companyId)
-          : shiftService.getShiftsByCompany(company.companyId, { employeeId: userProfile?.uid }),
-        employeeService.getEmployeesByCompany(company.companyId),
+          : (user?.uid ? shiftService.getShiftsByCompany(company.companyId, { assignedUserId: user.uid }) : Promise.resolve([])),
+        canManageShifts
+          ? employeeService.getEmployeesByCompany(company.companyId)
+          : Promise.resolve([]),
         projectService.getProjectsByCompany(company.companyId),
         jobSiteService.getJobSitesByCompany(company.companyId),
       ]);

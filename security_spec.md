@@ -63,3 +63,16 @@ The following payloads represent attack vectors that our security rules explicit
 15. **Worker Modifying Geofence Radius (Build 02):**
     - *Target:* `update(/companies/comp_alpha/jobSites/site_01)` with `{ "radiusMeters": 50000 }` by `EMPLOYEE`.
     - *Result:* PERMISSION_DENIED (Only Project Manager / Admin can modify job sites).
+16. **Arbitrary Self-Enrollment Without Invitation (P0):**
+    - *Target:* `create(/companies/comp_alpha/employees/emp_hack)` by an arbitrary user who knows the companyId.
+    - *Result:* PERMISSION_DENIED (Must be company onboarding creator, authorized admin, or hold a verified pending invitation).
+17. **Worker Company-Wide Attendance Query (P0):**
+    - *Target:* Worker listing `/companies/comp_alpha/timeEntries` without filtering by their own `userId`.
+    - *Result:* PERMISSION_DENIED (Rule explicitly mandates `resource.data.userId == request.auth.uid` for non-managers).
+18. **Cross-Tenant Storage Upload (P0):**
+    - *Target:* Uploading profile photo to `/companies/comp_other/employees/emp_123/avatar.png`.
+    - *Result:* PERMISSION_DENIED (Storage rule checks Firestore company membership and self-employee identity).
+19. **Worker Tampering Protected Employee Fields (P0):**
+    - *Target:* Worker updating own record with `{ "role": "ADMIN", "employeeNumber": "EMP-0001" }`.
+    - *Result:* PERMISSION_DENIED (Affected keys restricted strictly to non-sensitive contact fields).
+

@@ -410,10 +410,18 @@ export const attendanceService = {
   },
 
   /**
-   * Retrieve active clock-in session for a specific employee
+   * Retrieve active clock-in session for a specific employee or user
    */
-  async getActiveTimeEntry(companyId: string, employeeId: string): Promise<TimeEntry | null> {
-    const entries = await this.getTimeEntries(companyId, { employeeId });
+  async getActiveTimeEntry(
+    companyId: string,
+    params: { employeeId?: string; userId?: string } | string
+  ): Promise<TimeEntry | null> {
+    const filter =
+      typeof params === 'string'
+        ? { employeeId: params, userId: params.startsWith('emp_') ? undefined : params }
+        : params;
+
+    const entries = await this.getTimeEntries(companyId, filter);
     return (
       entries.find(
         (t) => t.status === 'clocked_in' || t.status === 'on_break' || t.status === 'flagged'
@@ -427,6 +435,7 @@ export const attendanceService = {
   async getTimeEntries(
     companyId: string,
     filters?: {
+      userId?: string;
       employeeId?: string;
       projectId?: string;
       jobSiteId?: string;
@@ -438,6 +447,7 @@ export const attendanceService = {
       try {
         const ref = collection(db, 'companies', companyId, 'timeEntries');
         const constraints = [];
+        if (filters?.userId) constraints.push(where('userId', '==', filters.userId));
         if (filters?.employeeId) constraints.push(where('employeeId', '==', filters.employeeId));
         if (filters?.projectId) constraints.push(where('projectId', '==', filters.projectId));
         if (filters?.jobSiteId) constraints.push(where('jobSiteId', '==', filters.jobSiteId));
@@ -457,6 +467,7 @@ export const attendanceService = {
         return all
           .filter((t) => {
             if (t.companyId !== companyId) return false;
+            if (filters?.userId && t.userId !== filters.userId) return false;
             if (filters?.employeeId && t.employeeId !== filters.employeeId) return false;
             if (filters?.projectId && t.projectId !== filters.projectId) return false;
             if (filters?.jobSiteId && t.jobSiteId !== filters.jobSiteId) return false;
