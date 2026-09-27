@@ -5,7 +5,13 @@
  */
 
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
-import { getAuth, type Auth } from 'firebase/auth';
+import {
+  initializeAuth,
+  getAuth,
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
+  type Auth,
+} from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 import { resolveFirebaseConfig, type FirebaseConnectionStatus } from '../../config/firebase.config';
@@ -23,11 +29,20 @@ if (config && status.isConfigured) {
   try {
     if (!getApps().length) {
       appInstance = initializeApp(config);
+      // Initialize authoritative Auth instance with multi-tier persistence
+      // Supports IndexedDB as primary, with automatic localStorage fallback in restrictive iframe contexts
+      try {
+        authInstance = initializeAuth(appInstance, {
+          persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+        });
+      } catch {
+        authInstance = getAuth(appInstance);
+      }
     } else {
       appInstance = getApp();
+      authInstance = getAuth(appInstance);
     }
 
-    authInstance = getAuth(appInstance);
     // Support specified databaseId if valid, otherwise use default
     const validDbId =
       config.firestoreDatabaseId &&
@@ -64,7 +79,13 @@ export function reinitializeFirebase(): boolean {
         return true;
       }
       appInstance = initializeApp(resolved.config);
-      authInstance = getAuth(appInstance);
+      try {
+        authInstance = initializeAuth(appInstance, {
+          persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+        });
+      } catch {
+        authInstance = getAuth(appInstance);
+      }
       const validDbId =
         resolved.config.firestoreDatabaseId &&
         !resolved.config.firestoreDatabaseId.startsWith('G-') &&

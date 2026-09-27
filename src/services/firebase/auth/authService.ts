@@ -30,30 +30,41 @@ export interface AuthSessionUser {
 const SANDBOX_AUTH_KEY = 'siteflow_sandbox_auth_user';
 const isDevEnvironment = Boolean(import.meta.env.DEV);
 
+let redirectHandled = false;
+
 export const authService = {
   /**
-   * Listen to auth state transitions and handle redirect results
+   * Initializes redirect result listener once on application boot.
+   * Catches errors from redirect flows without competing with onAuthStateChanged.
+   */
+  async handleRedirectResult(): Promise<AuthSessionUser | null> {
+    if (redirectHandled || !auth || !firebaseStatus.isConfigured) return null;
+    redirectHandled = true;
+    try {
+      const cred = await getRedirectResult(auth);
+      if (cred?.user) {
+        console.info('[SITEFLOW] Redirect authentication successful for:', cred.user.email);
+        return {
+          uid: cred.user.uid,
+          email: cred.user.email,
+          displayName: cred.user.displayName,
+          photoURL: cred.user.photoURL,
+          emailVerified: cred.user.emailVerified,
+        };
+      }
+      return null;
+    } catch (err: unknown) {
+      console.warn('[SITEFLOW] Non-fatal getRedirectResult notice:', err);
+      return null;
+    }
+  },
+
+  /**
+   * Authoritative Auth State Subscription.
+   * Firebase onAuthStateChanged is the SINGLE source of truth for session presence.
    */
   subscribeToAuthState(callback: (user: AuthSessionUser | null) => void): () => void {
     if (auth && firebaseStatus.isConfigured) {
-      // Check for redirect sign-in resolution on startup
-      getRedirectResult(auth)
-        .then((cred) => {
-          if (cred?.user) {
-            console.info('[SITEFLOW] Redirect authentication successful for:', cred.user.email);
-            callback({
-              uid: cred.user.uid,
-              email: cred.user.email,
-              displayName: cred.user.displayName,
-              photoURL: cred.user.photoURL,
-              emailVerified: cred.user.emailVerified,
-            });
-          }
-        })
-        .catch((err) => {
-          console.warn('[SITEFLOW] Non-fatal getRedirectResult notice:', err);
-        });
-
       return firebaseOnAuthStateChanged(auth, (fbUser: FirebaseUser | null) => {
         if (fbUser) {
           callback({
