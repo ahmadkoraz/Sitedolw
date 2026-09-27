@@ -88,6 +88,33 @@ service cloud.firestore {
       );
     }
 
+    // P0-2 & P0-3 (Phase 0.2): Shift Relational, Project, JobSite, and Employee / User Integrity
+    function isValidShiftData(companyId, data) {
+      return (
+        // Project exists in this company
+        exists(/databases/$(database)/documents/companies/$(companyId)/projects/$(data.projectId)) &&
+        get(/databases/$(database)/documents/companies/$(companyId)/projects/$(data.projectId)).data.companyId == companyId &&
+        // Job site exists in this company and belongs to the specified project
+        exists(/databases/$(database)/documents/companies/$(companyId)/jobSites/$(data.jobSiteId)) &&
+        get(/databases/$(database)/documents/companies/$(companyId)/jobSites/$(data.jobSiteId)).data.companyId == companyId &&
+        get(/databases/$(database)/documents/companies/$(companyId)/jobSites/$(data.jobSiteId)).data.projectId == data.projectId &&
+        // Employee exists in this company
+        exists(/databases/$(database)/documents/companies/$(companyId)/employees/$(data.employeeId)) &&
+        get(/databases/$(database)/documents/companies/$(companyId)/employees/$(data.employeeId)).data.companyId == companyId &&
+        // When assignedUserId is present, validate user existence, company membership, and employee.userId matching
+        (
+          !('assignedUserId' in data) ||
+          data.assignedUserId == null ||
+          data.assignedUserId == '' ||
+          (
+            exists(/databases/$(database)/documents/users/$(data.assignedUserId)) &&
+            get(/databases/$(database)/documents/users/$(data.assignedUserId)).data.companyId == companyId &&
+            get(/databases/$(database)/documents/companies/$(companyId)/employees/$(data.employeeId)).data.userId == data.assignedUserId
+          )
+        )
+      );
+    }
+
     // Companies Collection
     match /companies/{companyId} {
       // Members can read their own company, or creator during onboarding
@@ -203,9 +230,9 @@ service cloud.firestore {
                       request.resource.data.expiresAt > request.time &&
                       (request.resource.data.role != 'SUPER_ADMIN' || isSuperAdmin());
 
-        // P0-1: Expiration & strict field boundary enforced server-side
+        // P0-1 (Phase 0.2): Tightened update rule - strictly isolated acceptance vs revocation paths
         allow update: if isSignedIn() && (
-          (isMemberOfCompany(companyId) && isAdmin() && request.resource.data.companyId == resource.data.companyId) ||
+          // Path 1: Invited user accepting valid, unexpired pending invitation
           (
             resource.data.status == 'pending' &&
             ('expiresAt' in resource.data) &&
@@ -213,11 +240,32 @@ service cloud.firestore {
             resource.data.email == request.auth.token.email &&
             request.resource.data.status == 'accepted' &&
             request.resource.data.acceptedByUserId == request.auth.uid &&
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'acceptedAt', 'acceptedByUserId'])
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status',
+              'acceptedAt',
+              'acceptedByUserId'
+            ])
+          ) ||
+          // Path 2: Administrator / SuperAdmin revoking a pending invitation (strictly field-restricted)
+          (
+            isMemberOfCompany(companyId) &&
+            isAdmin() &&
+            resource.data.status == 'pending' &&
+            request.resource.data.status == 'revoked' &&
+            request.resource.data.companyId == resource.data.companyId &&
+            request.resource.data.invitationId == resource.data.invitationId &&
+            request.resource.data.email == resource.data.email &&
+            request.resource.data.invitedBy == resource.data.invitedBy &&
+            request.resource.data.createdAt == resource.data.createdAt &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status',
+              'revokedAt',
+              'revokedBy'
+            ])
           )
         );
 
-        allow delete: if isSignedIn() && isMemberOfCompany(companyId) && isAdmin();
+        allow delete: if false; // Soft-delete / revocation enforced; no client deletion of protected records
       }
 
       // Audit Logs Subcollection (Strictly Append-Only & Immutable)
@@ -304,25 +352,19 @@ service cloud.firestore {
       match /shifts/{shiftId} {
         // Workers can only read their assigned shifts; Supervisors and Managers read all
         allow get: if isSignedIn() && isMemberOfCompany(companyId) &&
-                   (isSupervisor() || resource.data.assignedUserId == request.auth.uid || resource.data.employeeId == userDoc().uid);
+                   (isSupervisor() || (('assignedUserId' in resource.data) && resource.data.assignedUserId == request.auth.uid));
         
         allow list: if isSignedIn() && isMemberOfCompany(companyId) &&
-                    (isSupervisor() || resource.data.assignedUserId == request.auth.uid || resource.data.employeeId == userDoc().uid);
+                    (isSupervisor() || (('assignedUserId' in resource.data) && resource.data.assignedUserId == request.auth.uid));
         
-        // P0-3: Project, JobSite, and Employee integrity
+        // P0-2 & P0-3 (Phase 0.2): Project, JobSite, and Employee + assignedUserId integrity
         allow create: if isSignedIn() &&
                       isMemberOfCompany(companyId) &&
                       isSupervisor() &&
                       isValidId(shiftId) &&
                       request.resource.data.companyId == companyId &&
                       request.resource.data.shiftId == shiftId &&
-                      exists(/databases/$(database)/documents/companies/$(companyId)/projects/$(request.resource.data.projectId)) &&
-                      get(/databases/$(database)/documents/companies/$(companyId)/projects/$(request.resource.data.projectId)).data.companyId == companyId &&
-                      exists(/databases/$(database)/documents/companies/$(companyId)/jobSites/$(request.resource.data.jobSiteId)) &&
-                      get(/databases/$(database)/documents/companies/$(companyId)/jobSites/$(request.resource.data.jobSiteId)).data.companyId == companyId &&
-                      get(/databases/$(database)/documents/companies/$(companyId)/jobSites/$(request.resource.data.jobSiteId)).data.projectId == request.resource.data.projectId &&
-                      exists(/databases/$(database)/documents/companies/$(companyId)/employees/$(request.resource.data.employeeId)) &&
-                      get(/databases/$(database)/documents/companies/$(companyId)/employees/$(request.resource.data.employeeId)).data.companyId == companyId;
+                      isValidShiftData(companyId, request.resource.data);
 
         allow update: if isSignedIn() &&
                       isMemberOfCompany(companyId) &&
@@ -330,11 +372,7 @@ service cloud.firestore {
                       request.resource.data.companyId == resource.data.companyId &&
                       request.resource.data.shiftId == resource.data.shiftId &&
                       request.resource.data.createdAt == resource.data.createdAt &&
-                      exists(/databases/$(database)/documents/companies/$(companyId)/projects/$(request.resource.data.projectId)) &&
-                      get(/databases/$(database)/documents/companies/$(companyId)/projects/$(request.resource.data.projectId)).data.companyId == companyId &&
-                      exists(/databases/$(database)/documents/companies/$(companyId)/jobSites/$(request.resource.data.jobSiteId)) &&
-                      get(/databases/$(database)/documents/companies/$(companyId)/jobSites/$(request.resource.data.jobSiteId)).data.companyId == companyId &&
-                      get(/databases/$(database)/documents/companies/$(companyId)/jobSites/$(request.resource.data.jobSiteId)).data.projectId == request.resource.data.projectId;
+                      isValidShiftData(companyId, request.resource.data);
 
         allow delete: if false;
       }

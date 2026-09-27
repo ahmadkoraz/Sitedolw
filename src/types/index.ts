@@ -184,6 +184,10 @@ export interface Invitation {
   expiresAt: string;
   createdAt: string;
   updatedAt?: string;
+  acceptedAt?: string;
+  acceptedByUserId?: string;
+  revokedAt?: string;
+  revokedBy?: string;
 }
 
 export type AuditAction =

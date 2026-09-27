@@ -17,7 +17,7 @@ import {
   where,
   Timestamp,
 } from 'firebase/firestore';
-import { db, firebaseStatus } from '../firebaseApp';
+import { db, auth, firebaseStatus } from '../firebaseApp';
 import { handleFirestoreError, OperationType } from '../errorHandler';
 import type { Invitation, UserRole, UserProfile, Employee, AuditLog } from '../../../types';
 import { userService } from './userService';
@@ -335,14 +335,21 @@ export const invitationService = {
 
 
   /**
-   * Revoke an invitation
+   * Revoke an invitation (Administrator action)
    */
   async revokeInvitation(companyId: string, invitationId: string): Promise<void> {
+    const timestamp = new Date().toISOString();
+    const actorUserId = auth?.currentUser?.uid || 'admin';
+
     if (db && firebaseStatus.isConfigured) {
       const path = `companies/${companyId}/invitations/${invitationId}`;
       try {
         const ref = doc(db, 'companies', companyId, 'invitations', invitationId);
-        await updateDoc(ref, { status: 'revoked', updatedAt: new Date().toISOString() });
+        await updateDoc(ref, {
+          status: 'revoked',
+          revokedAt: timestamp,
+          revokedBy: actorUserId,
+        });
       } catch (err) {
         handleFirestoreError(err, OperationType.UPDATE, path);
       }
@@ -351,7 +358,9 @@ export const invitationService = {
       if (raw) {
         let list: Invitation[] = JSON.parse(raw);
         list = list.map((inv) =>
-          inv.invitationId === invitationId ? { ...inv, status: 'revoked' } : inv
+          inv.invitationId === invitationId
+            ? { ...inv, status: 'revoked', revokedAt: timestamp, revokedBy: actorUserId }
+            : inv
         );
         localStorage.setItem(SANDBOX_INVITES_KEY, JSON.stringify(list));
       }

@@ -110,7 +110,10 @@ export const shiftService = {
       const path = `companies/${companyId}/shifts/${shiftData.shiftId}`;
       try {
         const ref = doc(db, 'companies', companyId, 'shifts', shiftData.shiftId);
-        await setDoc(ref, shiftData);
+        const cleanData = Object.fromEntries(
+          Object.entries(shiftData).filter(([_, v]) => v !== undefined)
+        );
+        await setDoc(ref, cleanData);
       } catch (err) {
         handleFirestoreError(err, OperationType.CREATE, path);
       }
@@ -139,7 +142,10 @@ export const shiftService = {
       const path = `companies/${companyId}/shifts/${shiftId}`;
       try {
         const ref = doc(db, 'companies', companyId, 'shifts', shiftId);
-        await updateDoc(ref, payload);
+        const cleanPayload = Object.fromEntries(
+          Object.entries(payload).filter(([_, v]) => v !== undefined)
+        );
+        await updateDoc(ref, cleanPayload);
       } catch (err) {
         handleFirestoreError(err, OperationType.UPDATE, path);
       }
