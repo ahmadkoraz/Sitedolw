@@ -10,6 +10,7 @@ import {
   getAuth,
   indexedDBLocalPersistence,
   browserLocalPersistence,
+  browserPopupRedirectResolver,
   type Auth,
 } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
@@ -34,6 +35,7 @@ if (config && status.isConfigured) {
       try {
         authInstance = initializeAuth(appInstance, {
           persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+          popupRedirectResolver: browserPopupRedirectResolver,
         });
       } catch {
         authInstance = getAuth(appInstance);
@@ -82,6 +84,7 @@ export function reinitializeFirebase(): boolean {
       try {
         authInstance = initializeAuth(appInstance, {
           persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+          popupRedirectResolver: browserPopupRedirectResolver,
         });
       } catch {
         authInstance = getAuth(appInstance);

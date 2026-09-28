@@ -1,14 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { doc, writeBatch } from 'firebase/firestore';
-import { db, firebaseStatus } from '../../services/firebase/firebaseApp';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { companyService } from '../../services/firebase/firestore/companyService';
-import { userService } from '../../services/firebase/firestore/userService';
-import { employeeService } from '../../services/firebase/firestore/employeeService';
 import { auditService } from '../../services/firebase/firestore/auditService';
 import { invitationService } from '../../services/firebase/firestore/invitationService';
 import { SiteflowLogo } from '../../components/common/SiteflowLogo';
-import type { Company, UserProfile, Employee, Invitation, AuditLog } from '../../types';
+import type { Company, UserProfile, Employee, Invitation } from '../../types';
 import {
   Building2,
   MapPin,
@@ -39,6 +35,7 @@ export const OnboardingFlow: React.FC = () => {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const submittingRef = useRef(false);
 
   // Invitation Acceptance Profile Fields
   const [inviteFirstName, setInviteFirstName] = useState(
@@ -251,11 +248,14 @@ export const OnboardingFlow: React.FC = () => {
   const handleCompleteSetup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (submittingRef.current || loading) return;
+
     if (!firstName.trim() || !lastName.trim()) {
       setError('First and last name are required for the primary Super Admin profile.');
       return;
     }
 
+    submittingRef.current = true;
     setError(null);
     setLoading(true);
 
@@ -264,7 +264,7 @@ export const OnboardingFlow: React.FC = () => {
       const sanitizedSlug = companyName.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 16);
       const companyId = `comp_${sanitizedSlug}_${Date.now().toString(36)}`;
 
-      // 1. Create Company Document
+      // 1. Prepare Company Document
       const newCompany: Company = {
         companyId,
         name: companyName.trim(),
@@ -282,9 +282,8 @@ export const OnboardingFlow: React.FC = () => {
         updatedAt: timestamp,
         createdBy: user.uid,
       };
-      await companyService.createCompany(newCompany);
 
-      // 2. Create User Profile with SUPER_ADMIN role (Company Creator Only)
+      // 2. Prepare User Profile with SUPER_ADMIN role (Company Creator Only)
       const userProfile: UserProfile = {
         uid: user.uid,
         companyId,
@@ -299,9 +298,8 @@ export const OnboardingFlow: React.FC = () => {
         updatedAt: timestamp,
         lastLoginAt: timestamp,
       };
-      await userService.createUserProfile(userProfile);
 
-      // 3. Create Corresponding Employee Record
+      // 3. Prepare Corresponding Employee Record
       const employeeRecord: Employee = {
         employeeId: `emp_${user.uid.slice(0, 8)}`,
         userId: user.uid,
@@ -319,54 +317,28 @@ export const OnboardingFlow: React.FC = () => {
         createdAt: timestamp,
         updatedAt: timestamp,
       };
-      await employeeService.createEmployee(companyId, employeeRecord);
 
-      // 4. Prepare Audit Log Event for Company Initialization
-      const auditId = `aud_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      const auditLogEvent: AuditLog = {
-        auditId,
+      // 4. Phase 0.4B: Atomically commit Company + User + Employee in ONE single writeBatch()
+      await companyService.createCompanyAtomic({
+        company: newCompany,
+        userProfile,
+        employee: employeeRecord,
+      });
+
+      // 5. Non-fatal audit trail logging emitted after successful atomic initialization
+      auditService.logEvent({
         companyId,
         actorUserId: user.uid,
         actorRole: 'SUPER_ADMIN',
         action: 'COMPANY_CREATED',
         resourceType: 'company',
         resourceId: companyId,
-        timestamp,
         metadata: {
           note: 'Company organization established via atomic onboarding flow',
         },
-      };
-
-      // 5. Commit Atomically to prevent orphaned or partial records
-      if (db && firebaseStatus.isConfigured) {
-        const batch = writeBatch(db);
-        const compRef = doc(db, 'companies', companyId);
-        const userRef = doc(db, 'users', user.uid);
-        const empRef = doc(db, 'companies', companyId, 'employees', employeeRecord.employeeId);
-        const auditRef = doc(db, 'companies', companyId, 'auditLogs', auditId);
-
-        batch.set(compRef, newCompany);
-        batch.set(userRef, userProfile);
-        batch.set(empRef, employeeRecord);
-        batch.set(auditRef, auditLogEvent);
-
-        await batch.commit();
-      } else {
-        await companyService.createCompany(newCompany);
-        await userService.createUserProfile(userProfile);
-        await employeeService.createEmployee(companyId, employeeRecord);
-        await auditService.logEvent({
-          companyId,
-          actorUserId: user.uid,
-          actorRole: 'SUPER_ADMIN',
-          action: 'COMPANY_CREATED',
-          resourceType: 'company',
-          resourceId: companyId,
-          metadata: {
-            note: 'Company organization established via onboarding flow',
-          },
-        });
-      }
+      }).catch((logErr) => {
+        console.warn('[SITEFLOW] Non-fatal onboarding audit log skipped:', logErr);
+      });
 
       // Move to Step 4 Confirmation
       setStep(4);
@@ -374,6 +346,7 @@ export const OnboardingFlow: React.FC = () => {
       console.error('Onboarding error:', err);
       setError(err instanceof Error ? err.message : 'Failed to finalize company onboarding.');
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   };

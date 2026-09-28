@@ -4,12 +4,18 @@
  * Encapsulates company tenant operations.
  */
 
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { db, firebaseStatus } from '../firebaseApp';
 import { handleFirestoreError, OperationType } from '../errorHandler';
-import type { Company } from '../../../types';
+import type { Company, UserProfile, Employee } from '../../../types';
 
 const SANDBOX_COMPANIES_KEY = 'siteflow_sandbox_companies';
+
+export interface AtomicCompanyOnboardingParams {
+  company: Company;
+  userProfile: UserProfile;
+  employee: Employee;
+}
 
 export const companyService = {
   /**
@@ -91,6 +97,62 @@ export const companyService = {
         };
         localStorage.setItem(SANDBOX_COMPANIES_KEY, JSON.stringify(companies));
       }
+    }
+  },
+
+  /**
+   * Phase 0.4B: Atomically creates a new Company, UserProfile (SUPER_ADMIN),
+   * and initial Employee record in ONE single Firestore writeBatch().
+   * Guarantees all three writes are committed together or none at all.
+   */
+  async createCompanyAtomic(params: AtomicCompanyOnboardingParams): Promise<void> {
+    const { company, userProfile, employee } = params;
+
+    // Security & relational invariants
+    if (userProfile.uid !== employee.userId) {
+      throw new Error('Onboarding integrity error: User UID must match Employee userId.');
+    }
+    if (company.companyId !== userProfile.companyId || company.companyId !== employee.companyId) {
+      throw new Error('Onboarding integrity error: CompanyId mismatch across atomic records.');
+    }
+    if (company.createdBy !== userProfile.uid) {
+      throw new Error('Onboarding integrity error: Company createdBy must match User UID.');
+    }
+    if (userProfile.role !== 'SUPER_ADMIN') {
+      throw new Error('Onboarding integrity error: Initial company creator must have SUPER_ADMIN role.');
+    }
+
+    if (db && firebaseStatus.isConfigured) {
+      const batch = writeBatch(db);
+      const compRef = doc(db, 'companies', company.companyId);
+      const userRef = doc(db, 'users', userProfile.uid);
+      const empRef = doc(db, 'companies', company.companyId, 'employees', employee.employeeId);
+
+      batch.set(compRef, company);
+      batch.set(userRef, userProfile);
+      batch.set(empRef, employee);
+
+      try {
+        await batch.commit();
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `companies/${company.companyId}`);
+      }
+    } else {
+      // Sandbox fallback: atomic synchronous storage assignment
+      const rawComp = localStorage.getItem(SANDBOX_COMPANIES_KEY);
+      const companies: Record<string, Company> = rawComp ? JSON.parse(rawComp) : {};
+      companies[company.companyId] = company;
+      localStorage.setItem(SANDBOX_COMPANIES_KEY, JSON.stringify(companies));
+
+      const rawUsers = localStorage.getItem('siteflow_sandbox_user_profiles');
+      const users: Record<string, UserProfile> = rawUsers ? JSON.parse(rawUsers) : {};
+      users[userProfile.uid] = userProfile;
+      localStorage.setItem('siteflow_sandbox_user_profiles', JSON.stringify(users));
+
+      const rawEmps = localStorage.getItem('siteflow_sandbox_employees');
+      const emps: Employee[] = rawEmps ? JSON.parse(rawEmps) : [];
+      emps.push(employee);
+      localStorage.setItem('siteflow_sandbox_employees', JSON.stringify(emps));
     }
   },
 };

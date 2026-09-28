@@ -2,94 +2,16 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     
-    // Default Deny All
+    // Default Deny All: Production Cloud Storage is default-deny.
+    // ARCHITECTURE CONSTRAINT (Phase 0.4B):
+    // SITEFLOW operates on a named Firestore database ('ai-studio-siteflow-8e674b08-0f8a-4b58-a60a-896eedd3df21').
+    // Firebase Storage Security Rules only support querying the DEFAULT database ('/databases/(default)/...').
+    // Because client-only architecture cannot securely maintain a server-side authorization mirror in '(default)',
+    // and public access ('allow read: if true;') or relaxed unverified rules are strictly forbidden,
+    // all Cloud Storage reads and writes remain denied (default-deny) until server-authoritative
+    // authorization synchronization is established.
     match /{allPaths=**} {
       allow read, write: if false;
-    }
-
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isSafeImage() {
-      return request.resource.contentType.matches('image/(jpeg|png|webp|gif)')
-          && !request.resource.contentType.matches('.*(executable|script|html|svg).*')
-          && request.resource.size > 0
-          && request.resource.size <= 5 * 1024 * 1024; // Max 5MB
-    }
-
-    function isValidFileName(name) {
-      return name.size() > 0 && name.size() <= 128 && name.matches('^[a-zA-Z0-9_\\-\\.]+$');
-    }
-
-    function userDoc() {
-      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
-    }
-
-    function userCompanyId() {
-      return firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) ? userDoc().companyId : '';
-    }
-
-    function userRole() {
-      return firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) ? userDoc().role : '';
-    }
-
-    function isMemberOfCompany(companyId) {
-      return isSignedIn() && userCompanyId() == companyId;
-    }
-
-    function isAdmin(companyId) {
-      return isMemberOfCompany(companyId) && (userRole() == 'ADMIN' || userRole() == 'SUPER_ADMIN');
-    }
-
-    function isEmployeeSelf(companyId, employeeId) {
-      return isMemberOfCompany(companyId) && (
-        employeeId == request.auth.uid ||
-        (
-          firestore.exists(/databases/(default)/documents/companies/$(companyId)/employees/$(employeeId)) &&
-          firestore.get(/databases/(default)/documents/companies/$(companyId)/employees/$(employeeId)).data.userId == request.auth.uid
-        )
-      );
-    }
-
-    // Company Scoped Storage
-    match /companies/{companyId} {
-      
-      // Profile Photos: users can upload profile photos (must be safe image under 5MB)
-      match /employees/{employeeId}/{fileName} {
-        // Members of the same company can view employee profile photos
-        allow read: if isSignedIn() && isMemberOfCompany(companyId);
-        
-        // Employee may upload only their own profile photo, or company Admin
-        allow write: if isSignedIn() &&
-                        isValidFileName(fileName) &&
-                        isSafeImage() &&
-                        (isEmployeeSelf(companyId, employeeId) || isAdmin(companyId));
-      }
-
-      // Company Branding
-      match /branding/{fileName} {
-        // Public read for branding/logo
-        allow read: if true;
-        // Only authorized company Admin can write company branding
-        allow write: if isSignedIn() &&
-                        isValidFileName(fileName) &&
-                        isSafeImage() &&
-                        isAdmin(companyId);
-      }
-
-      // Explicitly denied directories
-      match /documents/{allPaths=**} {
-        allow read, write: if false;
-      }
-      
-      match /projects/{allPaths=**} {
-        allow read, write: if false;
-      }
-
-      match /safety/{allPaths=**} {
-        allow read, write: if false;
-      }
     }
   }
 }

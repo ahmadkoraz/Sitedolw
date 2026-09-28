@@ -13,6 +13,7 @@ import {
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
+  browserPopupRedirectResolver,
   onAuthStateChanged as firebaseOnAuthStateChanged,
   type User as FirebaseUser,
 } from 'firebase/auth';
@@ -41,7 +42,7 @@ export const authService = {
     if (redirectHandled || !auth || !firebaseStatus.isConfigured) return null;
     redirectHandled = true;
     try {
-      const cred = await getRedirectResult(auth);
+      const cred = await getRedirectResult(auth, browserPopupRedirectResolver);
       if (cred?.user) {
         console.info('[SITEFLOW] Redirect authentication successful for:', cred.user.email);
         return {
@@ -206,7 +207,7 @@ export const authService = {
       try {
         const provider = new GoogleAuthProvider();
         provider.setCustomParameters({ prompt: 'select_account' });
-        const cred = await signInWithPopup(auth, provider);
+        const cred = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
         return {
           uid: cred.user.uid,
           email: cred.user.email,
@@ -246,7 +247,7 @@ export const authService = {
       try {
         const provider = new GoogleAuthProvider();
         provider.setCustomParameters({ prompt: 'select_account' });
-        await signInWithRedirect(auth, provider);
+        await signInWithRedirect(auth, provider, browserPopupRedirectResolver);
       } catch (err: unknown) {
         console.error('[SITEFLOW] Google redirect sign-in error:', err);
         throw new Error(this.mapAuthError(err));
