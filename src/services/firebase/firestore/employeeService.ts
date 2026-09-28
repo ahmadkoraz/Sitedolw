@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore';
 import { db, firebaseStatus } from '../firebaseApp';
 import { handleFirestoreError, OperationType } from '../errorHandler';
+import { stripUndefined } from '../../../utils/cleanFirestoreData';
 import type { Employee, UserStatus } from '../../../types';
 
 const SANDBOX_EMPLOYEES_KEY = 'siteflow_sandbox_employees';
@@ -91,18 +92,19 @@ export const employeeService = {
       throw new Error(`An employee with email "${employeeData.email}" already exists in this company.`);
     }
 
+    const cleaned = stripUndefined(employeeData);
     if (db && firebaseStatus.isConfigured) {
       const path = `companies/${companyId}/employees/${employeeData.employeeId}`;
       try {
         const ref = doc(db, 'companies', companyId, 'employees', employeeData.employeeId);
-        await setDoc(ref, employeeData);
+        await setDoc(ref, cleaned);
       } catch (err) {
         handleFirestoreError(err, OperationType.CREATE, path);
       }
     } else {
       const raw = localStorage.getItem(SANDBOX_EMPLOYEES_KEY);
       const allEmployees: Employee[] = raw ? JSON.parse(raw) : [];
-      allEmployees.push(employeeData);
+      allEmployees.push(cleaned);
       localStorage.setItem(SANDBOX_EMPLOYEES_KEY, JSON.stringify(allEmployees));
     }
   },
@@ -115,10 +117,10 @@ export const employeeService = {
     employeeId: string,
     updates: Partial<Omit<Employee, 'employeeId' | 'companyId' | 'createdAt'>>
   ): Promise<void> {
-    const payload = {
+    const payload = stripUndefined({
       ...updates,
       updatedAt: new Date().toISOString(),
-    };
+    });
 
     if (db && firebaseStatus.isConfigured) {
       const path = `companies/${companyId}/employees/${employeeId}`;

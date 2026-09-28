@@ -5,6 +5,12 @@ import { auditService } from '../../services/firebase/firestore/auditService';
 import { useAuth } from '../auth/AuthContext';
 import { EmployeeModal } from './EmployeeModal';
 import { EmployeeDetailsModal } from './EmployeeDetailsModal';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { Button } from '../../components/ui/Button';
+import { Badge } from '../../components/ui/Badge';
+import { Card, CardContent } from '../../components/ui/Card';
+import { Avatar } from '../../components/ui/Avatar';
+import { EmptyState } from '../../components/ui/EmptyState';
 import {
   Users,
   UserPlus,
@@ -12,12 +18,13 @@ import {
   Filter,
   Eye,
   Edit2,
-  CheckCircle,
-  XCircle,
   AlertCircle,
   Loader2,
-  Shield,
-  Hash,
+  Mail,
+  Phone,
+  Briefcase,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react';
 
 export const EmployeeList: React.FC = () => {
@@ -127,246 +134,250 @@ export const EmployeeList: React.FC = () => {
     });
   }, [employees, searchQuery, statusFilter, roleFilter]);
 
-  const statusStyles: Record<UserStatus, string> = {
-    active: 'bg-[#2E9B5B]/15 text-[#2E9B5B] border-[#2E9B5B]/30',
-    pending: 'bg-amber-500/15 text-[#F5C400] border-[#F5C400]/30',
-    inactive: 'bg-[#555555]/20 text-[#A0A0A0] border-[#555555]/40',
-    suspended: 'bg-[#D92D20]/15 text-[#D92D20] border-[#D92D20]/30',
+  const getStatusBadgeVariant = (st: UserStatus): 'success' | 'warning' | 'neutral' | 'error' => {
+    switch (st) {
+      case 'active':
+        return 'success';
+      case 'pending':
+        return 'warning';
+      case 'inactive':
+        return 'neutral';
+      case 'suspended':
+        return 'error';
+      default:
+        return 'neutral';
+    }
+  };
+
+  const getRoleBadgeVariant = (r: UserRole): 'amber' | 'info' | 'neutral' => {
+    if (r === 'SUPER_ADMIN') return 'amber';
+    if (r === 'ADMIN' || r === 'PROJECT_MANAGER') return 'info';
+    return 'neutral';
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Top Header & Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold uppercase tracking-tight text-white flex items-center gap-2.5">
-            <Users className="w-6 h-6 text-[#F5C400]" />
-            Workforce Directory
-          </h1>
-          <p className="text-xs text-[#A0A0A0] mt-1">
-            Manage company employees, job titles, status, and role access controls
-          </p>
-        </div>
-
+      <PageHeader
+        title="Workforce Directory"
+        description="Manage company team members, field trade titles, status, and role access controls"
+        badge={
+          <Badge variant="neutral" size="sm">
+            {employees.length} Total Registered
+          </Badge>
+        }
+      >
         {isAdmin && (
-          <button
+          <Button
+            variant="primary"
+            size="md"
+            leftIcon={<UserPlus className="w-4 h-4" />}
             onClick={() => {
               setSelectedForEdit(null);
               setIsModalOpen(true);
             }}
-            className="px-4 py-2.5 bg-[#F5C400] hover:bg-[#e0b400] text-black font-bold text-xs uppercase tracking-wider rounded transition cursor-pointer flex items-center justify-center gap-2 shadow-md shadow-[#F5C400]/15"
           >
-            <UserPlus className="w-4 h-4" />
-            Add Employee
-          </button>
+            Add Team Member
+          </Button>
         )}
-      </div>
+      </PageHeader>
 
       {error && (
-        <div className="p-3.5 bg-[#D92D20]/10 border border-[#D92D20]/40 rounded text-xs text-[#D92D20] flex items-center gap-2.5">
-          <AlertCircle className="w-4 h-4 shrink-0" />
+        <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-400 flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
       {/* Filter and Search Bar */}
-      <div className="bg-[#1C1C1C] border border-[#2C2C2C] rounded-lg p-4 flex flex-col md:flex-row gap-3">
-        <div className="flex-1 relative">
-          <Search className="w-4 h-4 text-[#A0A0A0] absolute left-3 top-3" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by name, EMP ID, email, or trade title..."
-            className="w-full bg-[#111111] border border-[#2C2C2C] rounded pl-9 pr-3 py-2 text-xs text-white placeholder-[#555555] focus:outline-none focus:border-[#F5C400]"
-          />
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 text-xs text-[#A0A0A0]">
-            <Filter className="w-3.5 h-3.5" />
-            <span>Status:</span>
+      <Card className="p-4">
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="flex-1 relative">
+            <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by name, EMP ID, email, or trade title..."
+              className="w-full bg-slate-900/90 border border-slate-800 rounded-lg pl-10 pr-3.5 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500/60"
+            />
           </div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-[#111111] border border-[#2C2C2C] rounded px-2.5 py-2 text-xs text-white focus:outline-none focus:border-[#F5C400]"
-          >
-            <option value="all">All Statuses</option>
-            <option value="active">Active</option>
-            <option value="pending">Pending</option>
-            <option value="inactive">Inactive</option>
-            <option value="suspended">Suspended</option>
-          </select>
 
-          <div className="flex items-center gap-1.5 text-xs text-[#A0A0A0] ml-2">
-            <span>Role:</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5 text-xs text-slate-400">
+              <Filter className="w-3.5 h-3.5 text-slate-500" />
+              <span>Status:</span>
+            </div>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="bg-slate-900/90 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
+            >
+              <option value="all">All Statuses</option>
+              <option value="active">Active</option>
+              <option value="pending">Pending</option>
+              <option value="inactive">Inactive</option>
+              <option value="suspended">Suspended</option>
+            </select>
+
+            <div className="flex items-center gap-1.5 text-xs text-slate-400 ml-2">
+              <span>Role:</span>
+            </div>
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="bg-slate-900/90 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
+            >
+              <option value="all">All Roles</option>
+              <option value="SUPER_ADMIN">SUPER_ADMIN</option>
+              <option value="ADMIN">ADMIN</option>
+              <option value="PROJECT_MANAGER">PROJECT_MANAGER</option>
+              <option value="SUPERVISOR">SUPERVISOR</option>
+              <option value="HR">HR</option>
+              <option value="ACCOUNTING">ACCOUNTING</option>
+              <option value="EMPLOYEE">EMPLOYEE</option>
+            </select>
           </div>
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className="bg-[#111111] border border-[#2C2C2C] rounded px-2.5 py-2 text-xs text-white focus:outline-none focus:border-[#F5C400]"
-          >
-            <option value="all">All Roles</option>
-            <option value="SUPER_ADMIN">SUPER_ADMIN</option>
-            <option value="ADMIN">ADMIN</option>
-            <option value="PROJECT_MANAGER">PROJECT_MANAGER</option>
-            <option value="SUPERVISOR">SUPERVISOR</option>
-            <option value="HR">HR</option>
-            <option value="ACCOUNTING">ACCOUNTING</option>
-            <option value="EMPLOYEE">EMPLOYEE</option>
-          </select>
         </div>
-      </div>
+      </Card>
 
       {/* Directory Table */}
-      <div className="bg-[#1C1C1C] border border-[#2C2C2C] rounded-lg overflow-hidden shadow-xl">
+      <Card className="overflow-hidden">
         {loading ? (
-          <div className="py-16 text-center text-[#A0A0A0] flex flex-col items-center justify-center gap-3">
-            <Loader2 className="w-8 h-8 text-[#F5C400] animate-spin" />
-            <p className="text-xs uppercase tracking-wider font-semibold">
-              Loading Employee Roster...
-            </p>
+          <div className="py-20 text-center text-slate-400 flex flex-col items-center justify-center gap-3">
+            <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+            <p className="text-xs font-medium text-slate-400">Loading workforce records...</p>
           </div>
         ) : filteredEmployees.length === 0 ? (
-          <div className="py-16 text-center text-[#A0A0A0] px-4">
-            <Users className="w-12 h-12 mx-auto text-[#444444] mb-3" />
-            <h4 className="text-sm font-bold text-white uppercase tracking-tight mb-1">
-              No Employees Found
-            </h4>
-            <p className="text-xs text-[#777777] max-w-sm mx-auto mb-4">
-              {searchQuery || statusFilter !== 'all' || roleFilter !== 'all'
-                ? 'No workforce members matched your active filters.'
-                : 'There are currently 0 employees recorded for this company.'}
-            </p>
-            {isAdmin && !searchQuery && statusFilter === 'all' && (
-              <button
-                onClick={() => {
-                  setSelectedForEdit(null);
-                  setIsModalOpen(true);
-                }}
-                className="px-4 py-2 bg-[#F5C400] hover:bg-[#e0b400] text-black font-bold text-xs uppercase tracking-wider rounded transition cursor-pointer"
-              >
-                Add First Employee
-              </button>
-            )}
-          </div>
+          <EmptyState
+            icon={<Users className="w-6 h-6" />}
+            title="No Workforce Members Found"
+            description={
+              searchQuery || statusFilter !== 'all' || roleFilter !== 'all'
+                ? 'No workforce members matched your active filters. Try refining your search query.'
+                : 'There are currently no employee records added to this company workspace.'
+            }
+            actionLabel={isAdmin && !searchQuery ? 'Add First Employee' : undefined}
+            onAction={
+              isAdmin && !searchQuery
+                ? () => {
+                    setSelectedForEdit(null);
+                    setIsModalOpen(true);
+                  }
+                : undefined
+            }
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-[#151515] border-b border-[#2C2C2C] text-[#A0A0A0] uppercase tracking-wider text-[11px]">
+              <thead className="bg-slate-900/60 border-b border-slate-800/80 text-slate-400 uppercase tracking-wider text-[11px] font-semibold">
                 <tr>
-                  <th className="py-3 px-4">Employee</th>
-                  <th className="py-3 px-4">Number</th>
-                  <th className="py-3 px-4">Job Title & Dept</th>
+                  <th className="py-3 px-4">Member</th>
+                  <th className="py-3 px-4">ID Number</th>
                   <th className="py-3 px-4">Role</th>
+                  <th className="py-3 px-4">Trade Title</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#252525]">
+              <tbody className="divide-y divide-slate-800/60">
                 {filteredEmployees.map((emp) => (
-                  <tr key={emp.employeeId} className="hover:bg-[#222222] transition-colors">
-                    {/* Employee Identity */}
+                  <tr
+                    key={emp.employeeId}
+                    className="hover:bg-slate-900/40 transition-colors group"
+                  >
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[#111111] border border-[#3C3C3C] overflow-hidden flex items-center justify-center shrink-0">
-                          {emp.profilePhotoUrl ? (
-                            <img
-                              src={emp.profilePhotoUrl}
-                              alt=""
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <span className="font-bold text-[11px] text-[#A0A0A0]">
-                              {emp.firstName[0]}
-                              {emp.lastName[0]}
-                            </span>
-                          )}
-                        </div>
-                        <div>
-                          <div className="font-semibold text-white">
+                        <Avatar
+                          name={`${emp.firstName} ${emp.lastName}`}
+                          src={emp.profilePhotoUrl}
+                          size="md"
+                        />
+                        <div className="min-w-0">
+                          <button
+                            onClick={() => setSelectedForView(emp)}
+                            className="font-semibold text-slate-100 hover:text-amber-400 transition-colors text-left block truncate cursor-pointer text-sm"
+                          >
                             {emp.firstName} {emp.lastName}
-                          </div>
-                          <div className="text-[11px] text-[#777777]">{emp.email}</div>
+                          </button>
+                          <span className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                            <Mail className="w-3 h-3 text-slate-500" />
+                            <span className="truncate">{emp.email}</span>
+                          </span>
                         </div>
                       </div>
                     </td>
 
-                    {/* ID */}
-                    <td className="py-3 px-4 font-mono text-[#F5C400] font-medium">
+                    <td className="py-3 px-4 font-mono text-slate-300 text-xs">
                       {emp.employeeNumber}
                     </td>
 
-                    {/* Title & Dept */}
                     <td className="py-3 px-4">
-                      <div className="text-white font-medium">{emp.jobTitle}</div>
-                      <div className="text-[11px] text-[#777777]">
-                        {emp.department || 'Operations'}
-                      </div>
-                    </td>
-
-                    {/* Role */}
-                    <td className="py-3 px-4">
-                      <span className="inline-flex items-center gap-1 font-mono text-[11px] font-semibold text-white">
-                        <Shield className="w-3 h-3 text-[#F5C400]" />
+                      <Badge variant={getRoleBadgeVariant(emp.role)} size="sm">
                         {emp.role}
-                      </span>
+                      </Badge>
                     </td>
 
-                    {/* Status */}
                     <td className="py-3 px-4">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
-                          statusStyles[emp.status]
-                        }`}
-                      >
-                        {emp.status}
-                      </span>
+                      <div className="text-slate-200 font-medium">{emp.jobTitle}</div>
+                      {emp.department && (
+                        <div className="text-[11px] text-slate-500">{emp.department}</div>
+                      )}
                     </td>
 
-                    {/* Actions */}
+                    <td className="py-3 px-4">
+                      <Badge variant={getStatusBadgeVariant(emp.status)} size="sm" dot>
+                        <span className="capitalize">{emp.status}</span>
+                      </Badge>
+                    </td>
+
                     <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => setSelectedForView(emp)}
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           title="View Profile"
-                          className="p-1.5 hover:bg-[#2C2C2C] text-[#A0A0A0] hover:text-white rounded cursor-pointer transition"
+                          onClick={() => setSelectedForView(emp)}
+                          className="p-1.5 h-8 w-8 text-slate-400 hover:text-slate-100"
                         >
                           <Eye className="w-4 h-4" />
-                        </button>
+                        </Button>
 
                         {isAdmin && (
-                          <>
-                            <button
-                              onClick={() => {
-                                setSelectedForEdit(emp);
-                                setIsModalOpen(true);
-                              }}
-                              title="Edit Record"
-                              className="p-1.5 hover:bg-[#2C2C2C] text-[#A0A0A0] hover:text-[#F5C400] rounded cursor-pointer transition"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Edit Record"
+                            onClick={() => {
+                              setSelectedForEdit(emp);
+                              setIsModalOpen(true);
+                            }}
+                            className="p-1.5 h-8 w-8 text-slate-400 hover:text-amber-400"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
+                        )}
 
+                        {isAdmin && emp.role !== 'SUPER_ADMIN' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title={emp.status === 'active' ? 'Deactivate Member' : 'Activate Member'}
+                            onClick={() =>
+                              handleToggleStatus(emp, emp.status === 'active' ? 'inactive' : 'active')
+                            }
+                            className={`p-1.5 h-8 w-8 ${
+                              emp.status === 'active'
+                                ? 'text-slate-400 hover:text-red-400'
+                                : 'text-slate-400 hover:text-emerald-400'
+                            }`}
+                          >
                             {emp.status === 'active' ? (
-                              <button
-                                onClick={() => handleToggleStatus(emp, 'inactive')}
-                                title="Deactivate Employee"
-                                className="p-1.5 hover:bg-[#D92D20]/20 text-[#A0A0A0] hover:text-[#D92D20] rounded cursor-pointer transition"
-                              >
-                                <XCircle className="w-4 h-4" />
-                              </button>
+                              <XCircle className="w-4 h-4" />
                             ) : (
-                              <button
-                                onClick={() => handleToggleStatus(emp, 'active')}
-                                title="Activate Employee"
-                                className="p-1.5 hover:bg-[#2E9B5B]/20 text-[#A0A0A0] hover:text-[#2E9B5B] rounded cursor-pointer transition"
-                              >
-                                <CheckCircle className="w-4 h-4" />
-                              </button>
+                              <CheckCircle2 className="w-4 h-4" />
                             )}
-                          </>
+                          </Button>
                         )}
                       </div>
                     </td>
@@ -376,30 +387,35 @@ export const EmployeeList: React.FC = () => {
             </table>
           </div>
         )}
-      </div>
+      </Card>
 
-      {/* Employee Edit / Create Modal */}
+      {/* Add / Edit Modal */}
       {company && (
         <EmployeeModal
           isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
+          onClose={() => {
+            setIsModalOpen(false);
+            setSelectedForEdit(null);
+          }}
           onSave={handleSaveEmployee}
           initialEmployee={selectedForEdit}
           companyId={company.companyId}
         />
       )}
 
-      {/* Employee Details Modal */}
-      <EmployeeDetailsModal
-        employee={selectedForView}
-        onClose={() => setSelectedForView(null)}
-        canEdit={isAdmin}
-        onEdit={(emp) => {
-          setSelectedForView(null);
-          setSelectedForEdit(emp);
-          setIsModalOpen(true);
-        }}
-      />
+      {/* View Details Drawer/Modal */}
+      {selectedForView && (
+        <EmployeeDetailsModal
+          employee={selectedForView}
+          onClose={() => setSelectedForView(null)}
+          onEdit={(emp) => {
+            setSelectedForEdit(emp);
+            setSelectedForView(null);
+            setIsModalOpen(true);
+          }}
+          canEdit={Boolean(isAdmin)}
+        />
+      )}
     </div>
   );
 };

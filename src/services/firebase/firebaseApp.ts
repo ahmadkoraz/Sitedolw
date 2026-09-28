@@ -13,7 +13,7 @@ import {
   browserPopupRedirectResolver,
   type Auth,
 } from 'firebase/auth';
-import { getFirestore, type Firestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, type Firestore } from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 import { resolveFirebaseConfig, type FirebaseConnectionStatus } from '../../config/firebase.config';
 
@@ -52,7 +52,14 @@ if (config && status.isConfigured) {
       config.firestoreDatabaseId !== '(default)'
         ? config.firestoreDatabaseId
         : undefined;
-    dbInstance = validDbId ? getFirestore(appInstance, validDbId) : getFirestore(appInstance);
+
+    try {
+      dbInstance = validDbId
+        ? initializeFirestore(appInstance, { ignoreUndefinedProperties: true }, validDbId)
+        : initializeFirestore(appInstance, { ignoreUndefinedProperties: true });
+    } catch {
+      dbInstance = validDbId ? getFirestore(appInstance, validDbId) : getFirestore(appInstance);
+    }
     storageInstance = getStorage(appInstance);
 
     console.info(`[SITEFLOW] Firebase successfully initialized for project: ${config.projectId}`);
@@ -95,7 +102,14 @@ export function reinitializeFirebase(): boolean {
         resolved.config.firestoreDatabaseId !== '(default)'
           ? resolved.config.firestoreDatabaseId
           : undefined;
-      dbInstance = validDbId ? getFirestore(appInstance, validDbId) : getFirestore(appInstance);
+
+      try {
+        dbInstance = validDbId
+          ? initializeFirestore(appInstance, { ignoreUndefinedProperties: true }, validDbId)
+          : initializeFirestore(appInstance, { ignoreUndefinedProperties: true });
+      } catch {
+        dbInstance = validDbId ? getFirestore(appInstance, validDbId) : getFirestore(appInstance);
+      }
       storageInstance = getStorage(appInstance);
       return true;
     } catch (e) {

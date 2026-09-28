@@ -3,47 +3,67 @@ import React from 'react';
 interface SiteflowLogoProps {
   size?: 'sm' | 'md' | 'lg';
   showTagline?: boolean;
+  className?: string;
 }
 
-export const SiteflowLogo: React.FC<SiteflowLogoProps> = ({ size = 'md', showTagline = false }) => {
-  const sizeClasses = {
-    sm: 'text-lg',
-    md: 'text-2xl',
-    lg: 'text-3xl',
+export const SiteflowLogo: React.FC<SiteflowLogoProps> = ({
+  size = 'md',
+  showTagline = false,
+  className = '',
+}) => {
+  const iconDimensions = {
+    sm: 'w-6 h-6',
+    md: 'w-8 h-8',
+    lg: 'w-10 h-10',
   };
 
-  const iconSizes = {
-    sm: 'w-5 h-5',
-    md: 'w-7 h-7',
-    lg: 'w-9 h-9',
+  const textSizes = {
+    sm: 'text-base',
+    md: 'text-xl',
+    lg: 'text-2xl',
   };
 
   return (
-    <div className="flex flex-col select-none">
+    <div className={`flex flex-col select-none ${className}`}>
       <div className="flex items-center gap-2.5">
-        {/* Original Industrial Angular Monogram */}
-        <div className={`relative ${iconSizes[size]} bg-[#1C1C1C] border border-[#F5C400]/40 rounded-sm flex items-center justify-center overflow-hidden shadow-sm shadow-[#F5C400]/10`}>
-          <div className="absolute top-0 right-0 w-2.5 h-2.5 bg-[#F5C400] transform translate-x-1.5 -translate-y-1.5 rotate-45" />
-          <svg className="w-3/5 h-3/5 text-[#F5C400]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
-            <line x1="4" y1="22" x2="4" y2="15" />
+        {/* Modern Geometric Architectural Monogram */}
+        <div
+          className={`${iconDimensions[size]} rounded-lg bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700/80 flex items-center justify-center shadow-sm relative overflow-hidden shrink-0`}
+        >
+          {/* Subtle amber accent bar */}
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-amber-500" />
+          <svg
+            className="w-1/2 h-1/2 text-amber-400"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M3 21h18" />
+            <path d="M5 21V7l8-4v18" />
+            <path d="M19 21V11l-6-4" />
+            <path d="M9 9v.01" />
+            <path d="M9 13v.01" />
+            <path d="M9 17v.01" />
           </svg>
         </div>
-        
-        {/* Wordmark */}
+
+        {/* Brand Wordmark */}
         <div className="flex items-baseline tracking-tight">
-          <span className={`font-black uppercase tracking-wider font-['Chakra_Petch',sans-serif] ${sizeClasses[size]} text-white`}>
-            SITE
+          <span className={`font-bold tracking-tight text-slate-100 ${textSizes[size]}`}>
+            Site
           </span>
-          <span className={`font-black uppercase tracking-wider font-['Chakra_Petch',sans-serif] ${sizeClasses[size]} text-[#F5C400]`}>
-            FLOW
+          <span className={`font-bold tracking-tight text-amber-400 ${textSizes[size]}`}>
+            flow
           </span>
         </div>
       </div>
 
       {showTagline && (
-        <span className="text-[10px] font-semibold tracking-[0.2em] text-[#A0A0A0] uppercase mt-0.5 ml-0.5">
-          Work. Track. Build.
+        <span className="text-[10px] font-medium tracking-wider text-slate-400 uppercase mt-0.5 pl-0.5">
+          Work · Track · Build
         </span>
       )}
     </div>

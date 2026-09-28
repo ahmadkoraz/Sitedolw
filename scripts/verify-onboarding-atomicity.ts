@@ -261,6 +261,24 @@ async function runTests() {
     'Rejects atomic onboarding if creator user profile is not granted SUPER_ADMIN'
   );
 
+  // ----------------------------------------------------
+  // TEST 8: Undefined Property Sanitization (Fix for WriteBatch.set undefined error)
+  // ----------------------------------------------------
+  const dirtyCompany = {
+    ...validCompany,
+    phone: undefined,
+    address: undefined,
+    postalCode: undefined,
+  };
+  const { stripUndefined } = await import('../src/utils/cleanFirestoreData');
+  const cleaned = stripUndefined(dirtyCompany);
+  const hasUndefined = Object.values(cleaned).some((v) => v === undefined);
+  const keys = Object.keys(cleaned);
+  assert(
+    !hasUndefined && !keys.includes('phone') && !keys.includes('address') && !keys.includes('postalCode'),
+    'stripUndefined completely omits undefined properties, preventing WriteBatch.set() invalid data error'
+  );
+
   console.log(`\nVerification Complete: ${passed} / ${total} tests passed.\n`);
 }
 

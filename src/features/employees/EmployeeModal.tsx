@@ -2,7 +2,12 @@ import React, { useState, useEffect } from 'react';
 import type { Employee, UserRole, UserStatus } from '../../types';
 import { storageService } from '../../services/storage/storageService';
 import { useAuth } from '../auth/AuthContext';
-import { X, Upload, AlertCircle, Loader2, User, Mail, Phone, Briefcase, Hash, Shield } from 'lucide-react';
+import { Modal } from '../../components/ui/Modal';
+import { Input } from '../../components/ui/Input';
+import { Select } from '../../components/ui/Select';
+import { Button } from '../../components/ui/Button';
+import { stripUndefined } from '../../utils/cleanFirestoreData';
+import { Upload, AlertCircle, User, Calendar, Briefcase, Hash, Shield } from 'lucide-react';
 
 interface EmployeeModalProps {
   isOpen: boolean;
@@ -67,8 +72,6 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
     setError(null);
   }, [initialEmployee, isOpen]);
 
-  if (!isOpen) return null;
-
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -120,7 +123,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
       }
 
       const timestamp = new Date().toISOString();
-      const payload: Employee = {
+      const payload: Employee = stripUndefined({
         employeeId,
         userId: initialEmployee?.userId,
         companyId,
@@ -128,16 +131,16 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: email.trim().toLowerCase(),
-        phone: phone.trim() || undefined,
+        phone: phone.trim() ? phone.trim() : undefined,
         role,
         jobTitle: jobTitle.trim(),
-        department: department.trim() || undefined,
+        department: department.trim() ? department.trim() : undefined,
         status,
-        hireDate: hireDate || undefined,
-        profilePhotoUrl,
+        hireDate: hireDate ? hireDate : undefined,
+        profilePhotoUrl: profilePhotoUrl ? profilePhotoUrl : undefined,
         createdAt: initialEmployee?.createdAt || timestamp,
         updatedAt: timestamp,
-      };
+      });
 
       await onSave(payload);
       onClose();
@@ -149,246 +152,173 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-xs overflow-y-auto">
-      <div className="bg-[#1C1C1C] border border-[#2C2C2C] rounded-lg max-w-2xl w-full p-6 text-white shadow-2xl relative my-8">
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-[#A0A0A0] hover:text-white"
-        >
-          <X className="w-5 h-5" />
-        </button>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={initialEmployee ? 'Edit Team Member' : 'Add Team Member'}
+      description="Update verified workforce details, trade role, and contact information."
+      maxWidth="2xl"
+    >
+      {error && (
+        <div className="mb-4 p-3.5 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-400 flex items-center gap-2.5">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
 
-        <h3 className="text-xl font-bold uppercase tracking-tight mb-1 text-white">
-          {initialEmployee ? 'Edit Employee Record' : 'Add New Workforce Member'}
-        </h3>
-        <p className="text-xs text-[#A0A0A0] mb-5">
-          Company: <strong className="text-white">{companyId}</strong>
-        </p>
-
-        {error && (
-          <div className="mb-4 p-3 bg-[#D92D20]/10 border border-[#D92D20]/40 rounded text-xs text-[#D92D20] flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Photo Upload Area */}
+        <div className="flex flex-col sm:flex-row items-center gap-4 p-4 bg-slate-900/60 rounded-xl border border-slate-800">
+          <div className="relative w-16 h-16 rounded-full bg-slate-800 border border-slate-700 overflow-hidden flex items-center justify-center shrink-0">
+            {photoPreview ? (
+              <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
+            ) : (
+              <User className="w-7 h-7 text-slate-500" />
+            )}
           </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Photo & Basic Identity */}
-          <div className="flex flex-col sm:flex-row items-center gap-4 p-4 bg-[#111111] rounded border border-[#2C2C2C]">
-            <div className="relative w-16 h-16 rounded-full bg-[#252525] border border-[#3C3C3C] overflow-hidden flex items-center justify-center shrink-0">
-              {photoPreview ? (
-                <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
-              ) : (
-                <User className="w-8 h-8 text-[#666666]" />
+          <div className="flex-1 text-center sm:text-left">
+            <label className="text-xs font-medium text-slate-200 block mb-1">
+              Profile Photo (Optional)
+            </label>
+            <p className="text-[11px] text-slate-400 mb-2.5">
+              PNG, JPG, or WEBP up to 5MB for site safety identification.
+            </p>
+            <div className="flex items-center justify-center sm:justify-start gap-2">
+              <label className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700 rounded-lg cursor-pointer inline-flex items-center gap-1.5 transition">
+                <Upload className="w-3.5 h-3.5 text-amber-400" />
+                Select Photo
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoChange}
+                  className="hidden"
+                />
+              </label>
+              {photoPreview && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPhotoFile(null);
+                    setPhotoPreview(null);
+                  }}
+                  className="text-xs text-slate-400 hover:text-red-400 transition"
+                >
+                  Remove
+                </button>
               )}
             </div>
-            <div className="flex-1 text-center sm:text-left">
-              <label className="text-xs font-semibold uppercase tracking-wider text-white block mb-1">
-                Profile Photo (Max 5MB)
-              </label>
-              <div className="flex items-center justify-center sm:justify-start gap-2">
-                <label className="px-3 py-1.5 bg-[#252525] hover:bg-[#303030] text-xs font-medium text-white border border-[#3C3C3C] rounded cursor-pointer inline-flex items-center gap-1.5">
-                  <Upload className="w-3.5 h-3.5 text-[#F5C400]" />
-                  Choose File
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePhotoChange}
-                    className="hidden"
-                  />
-                </label>
-                {photoPreview && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPhotoFile(null);
-                      setPhotoPreview(null);
-                    }}
-                    className="text-xs text-[#D92D20] hover:underline"
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
-            </div>
           </div>
+        </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1">
-                First Name <span className="text-[#F5C400]">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                placeholder="James"
-                className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C400]"
-              />
-            </div>
+        {/* Identity Inputs */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Input
+            label="First Name"
+            required
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            placeholder="John"
+          />
+          <Input
+            label="Last Name"
+            required
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            placeholder="Doe"
+          />
+        </div>
 
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1">
-                Last Name <span className="text-[#F5C400]">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                placeholder="Miller"
-                className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C400]"
-              />
-            </div>
-          </div>
+        {/* Contact Inputs */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Input
+            label="Email Address"
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="john.doe@company.com"
+          />
+          <Input
+            label="Phone Number"
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+1 (555) 000-0000"
+          />
+        </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1 flex items-center gap-1">
-                <Mail className="w-3 h-3 text-[#F5C400]" /> Email Address <span className="text-[#F5C400]">*</span>
-              </label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="j.miller@siteflow.dev"
-                className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C400]"
-              />
-            </div>
+        {/* Role & Number */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Input
+            label="Employee ID Number"
+            required
+            value={employeeNumber}
+            onChange={(e) => setEmployeeNumber(e.target.value)}
+            placeholder="EMP-1001"
+          />
+          <Select
+            label="System Role"
+            required
+            value={role}
+            onChange={(e) => setRole(e.target.value as UserRole)}
+          >
+            <option value="EMPLOYEE">EMPLOYEE (Field Worker)</option>
+            <option value="SUPERVISOR">SUPERVISOR (Field Lead)</option>
+            <option value="PROJECT_MANAGER">PROJECT_MANAGER</option>
+            <option value="ADMIN">ADMIN</option>
+            {isSuperAdmin && <option value="SUPER_ADMIN">SUPER_ADMIN</option>}
+            <option value="HR">HR</option>
+            <option value="ACCOUNTING">ACCOUNTING</option>
+          </Select>
+        </div>
 
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1 flex items-center gap-1">
-                <Phone className="w-3 h-3 text-[#F5C400]" /> Mobile Phone
-              </label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+1 (416) 555-0199"
-                className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C400]"
-              />
-            </div>
-          </div>
+        {/* Trade & Department */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Input
+            label="Job / Trade Title"
+            required
+            value={jobTitle}
+            onChange={(e) => setJobTitle(e.target.value)}
+            placeholder="Lead Carpenter / Site Superintendent"
+          />
+          <Input
+            label="Department"
+            value={department}
+            onChange={(e) => setDepartment(e.target.value)}
+            placeholder="Framing & Structural"
+          />
+        </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1 flex items-center gap-1">
-                <Hash className="w-3 h-3 text-[#F5C400]" /> Employee Number <span className="text-[#F5C400]">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={employeeNumber}
-                onChange={(e) => setEmployeeNumber(e.target.value)}
-                placeholder="EMP-1002"
-                className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-3 py-2 text-sm font-mono text-white focus:outline-none focus:border-[#F5C400]"
-              />
-            </div>
+        {/* Status & Hire Date */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Select
+            label="Operational Status"
+            value={status}
+            onChange={(e) => setStatus(e.target.value as UserStatus)}
+          >
+            <option value="active">Active (Available for Dispatch)</option>
+            <option value="pending">Pending</option>
+            <option value="inactive">Inactive</option>
+            <option value="suspended">Suspended</option>
+          </Select>
+          <Input
+            label="Hire Date"
+            type="date"
+            value={hireDate}
+            onChange={(e) => setHireDate(e.target.value)}
+          />
+        </div>
 
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1 flex items-center gap-1">
-                <Briefcase className="w-3 h-3 text-[#F5C400]" /> Job Title <span className="text-[#F5C400]">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={jobTitle}
-                onChange={(e) => setJobTitle(e.target.value)}
-                placeholder="Framing Lead"
-                className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C400]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1">
-                Department
-              </label>
-              <input
-                type="text"
-                value={department}
-                onChange={(e) => setDepartment(e.target.value)}
-                placeholder="Carpentry"
-                className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C400]"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1 flex items-center gap-1">
-                <Shield className="w-3 h-3 text-[#F5C400]" /> System Role <span className="text-[#F5C400]">*</span>
-              </label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as UserRole)}
-                className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C400]"
-              >
-                <option value="EMPLOYEE">EMPLOYEE</option>
-                <option value="SUPERVISOR">SUPERVISOR</option>
-                <option value="PROJECT_MANAGER">PROJECT_MANAGER</option>
-                <option value="HR">HR</option>
-                <option value="ACCOUNTING">ACCOUNTING</option>
-                <option value="ADMIN">ADMIN</option>
-                {/* Only SUPER_ADMIN actor can assign SUPER_ADMIN */}
-                {isSuperAdmin && <option value="SUPER_ADMIN">SUPER_ADMIN</option>}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1">
-                Status
-              </label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as UserStatus)}
-                className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C400]"
-              >
-                <option value="active">Active</option>
-                <option value="pending">Pending</option>
-                <option value="inactive">Inactive</option>
-                <option value="suspended">Suspended</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1">
-                Hire Date
-              </label>
-              <input
-                type="date"
-                value={hireDate}
-                onChange={(e) => setHireDate(e.target.value)}
-                className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C400]"
-              />
-            </div>
-          </div>
-
-          <div className="pt-4 flex items-center justify-end gap-3 border-t border-[#2C2C2C]">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-[#252525] hover:bg-[#303030] text-xs font-semibold text-white rounded cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-6 py-2 bg-[#F5C400] hover:bg-[#e0b400] text-black text-xs font-bold uppercase tracking-wider rounded transition cursor-pointer flex items-center gap-2 shadow-md shadow-[#F5C400]/20 disabled:opacity-50"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" /> Saving...
-                </>
-              ) : (
-                'Save Employee Record'
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        {/* Footer Actions */}
+        <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-3">
+          <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="primary" isLoading={loading}>
+            {initialEmployee ? 'Save Changes' : 'Create Team Member'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 };

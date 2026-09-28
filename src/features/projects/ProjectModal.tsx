@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import type { Project, ProjectStatus, Employee } from '../../types';
-import { X, Building, Calendar, User, FileText, AlertCircle, Loader2 } from 'lucide-react';
+import { Modal } from '../../components/ui/Modal';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { Select } from '../../components/ui/Select';
+import { AlertCircle, Building, Calendar, User, Briefcase } from 'lucide-react';
 
 interface ProjectModalProps {
   isOpen: boolean;
@@ -54,8 +58,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     setError(null);
   }, [initialProject, isOpen]);
 
-  if (!isOpen) return null;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -99,177 +101,124 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     }
   };
 
+  const managerOptions = [
+    { value: '', label: 'Unassigned (No Project Lead)' },
+    ...employees.map((emp) => ({
+      value: emp.employeeId,
+      label: `${emp.firstName} ${emp.lastName} (${emp.jobTitle || emp.role})`,
+    })),
+  ];
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-xs overflow-y-auto">
-      <div className="bg-[#1C1C1C] border border-[#2C2C2C] rounded-lg max-w-xl w-full p-6 text-white shadow-2xl relative my-8">
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-[#A0A0A0] hover:text-white"
-        >
-          <X className="w-5 h-5" />
-        </button>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={initialProject ? 'Edit Project Contract' : 'Create New Project Contract'}
+      description="Define project identity, client details, schedule timeline, and assigned project lead"
+      maxWidth="lg"
+    >
+      {error && (
+        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-xs text-red-400 flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
 
-        <h3 className="text-xl font-bold uppercase tracking-tight mb-1 text-white flex items-center gap-2">
-          <Building className="w-5 h-5 text-[#F5C400]" />
-          {initialProject ? 'Edit Construction Project' : 'Create New Project'}
-        </h3>
-        <p className="text-xs text-[#A0A0A0] mb-5">
-          Define client contract, schedule milestones, and supervisory assignment
-        </p>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Input
+            label="Project Name"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Apex Tower Construction"
+          />
 
-        {error && (
-          <div className="mb-4 p-3 bg-[#D92D20]/15 border border-[#D92D20]/40 rounded text-xs text-[#D92D20] flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
+          <Input
+            label="Contract Code"
+            required
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="e.g. PRJ-2026-101"
+          />
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1">
-                Project Name <span className="text-[#F5C400]">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Bayview Commercial Tower Phase II"
-                className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C400]"
-              />
-            </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Input
+            label="Client / General Contractor"
+            value={clientName}
+            onChange={(e) => setClientName(e.target.value)}
+            placeholder="e.g. EllisDon Corp."
+          />
 
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1">
-                Project Code <span className="text-[#F5C400]">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="PRJ-2026-01"
-                className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-3 py-2 text-sm font-mono text-white focus:outline-none focus:border-[#F5C400]"
-              />
-            </div>
-          </div>
+          <Select
+            label="Project Status"
+            value={status}
+            onChange={(e) => setStatus(e.target.value as ProjectStatus)}
+            options={[
+              { value: 'planning', label: 'Planning' },
+              { value: 'active', label: 'Active' },
+              { value: 'in_progress', label: 'In Progress' },
+              { value: 'on_hold', label: 'On Hold' },
+              { value: 'completed', label: 'Completed' },
+            ]}
+          />
+        </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1">
-                Client / Owner Name
-              </label>
-              <input
-                type="text"
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-                placeholder="Ontario Infrastructure Partners"
-                className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C400]"
-              />
-            </div>
+        <Select
+          label="Assigned Project Manager"
+          value={managerId}
+          onChange={(e) => setManagerId(e.target.value)}
+          options={managerOptions}
+        />
 
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1">
-                Status
-              </label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as ProjectStatus)}
-                className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C400]"
-              >
-                <option value="planning">Planning & Permitting</option>
-                <option value="in_progress">Active Execution (In Progress)</option>
-                <option value="on_hold">On Hold</option>
-                <option value="completed">Completed / Handed Over</option>
-                <option value="archived">Archived</option>
-              </select>
-            </div>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Input
+            type="date"
+            label="Target Start Date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1 flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-[#F5C400]" /> Assigned Project Manager
-              </label>
-              <select
-                value={managerId}
-                onChange={(e) => setManagerId(e.target.value)}
-                className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C400]"
-              >
-                <option value="">Unassigned</option>
-                {employees.map((emp) => (
-                  <option key={emp.employeeId} value={emp.employeeId}>
-                    {emp.firstName} {emp.lastName} ({emp.jobTitle} - {emp.role})
-                  </option>
-                ))}
-              </select>
-            </div>
+          <Input
+            type="date"
+            label="Estimated Completion"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+          />
+        </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1 flex items-center gap-1">
-                  <Calendar className="w-3 h-3 text-[#F5C400]" /> Start Date
-                </label>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-2.5 py-2 text-xs text-white focus:outline-none focus:border-[#F5C400]"
-                />
-              </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-300 mb-1.5">
+            Scope & Notes
+          </label>
+          <textarea
+            rows={3}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="High-level description of trade scopes, deliverables, or site safety instructions..."
+            className="w-full bg-slate-900/90 text-slate-100 placeholder:text-slate-500 text-sm rounded-lg border border-slate-800 p-3 transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500/60"
+          />
+        </div>
 
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1 flex items-center gap-1">
-                  <Calendar className="w-3 h-3 text-[#F5C400]" /> Target End
-                </label>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-2.5 py-2 text-xs text-white focus:outline-none focus:border-[#F5C400]"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1 flex items-center gap-1.5">
-              <FileText className="w-3.5 h-3.5 text-[#F5C400]" /> Project Scope & Scope Description
-            </label>
-            <textarea
-              rows={3}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Structural framing, mechanical fit-out, and site safety compliance."
-              className="w-full bg-[#111111] border border-[#2C2C2C] rounded p-2.5 text-xs text-white focus:outline-none focus:border-[#F5C400]"
-            />
-          </div>
-
-          <div className="pt-4 flex items-center justify-end gap-3 border-t border-[#2C2C2C]">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-[#252525] hover:bg-[#303030] text-xs font-semibold text-white rounded cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-6 py-2 bg-[#F5C400] hover:bg-[#e0b400] text-black text-xs font-bold uppercase tracking-wider rounded transition cursor-pointer flex items-center gap-2 shadow-md shadow-[#F5C400]/20 disabled:opacity-50"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" /> Saving...
-                </>
-              ) : (
-                'Save Project Contract'
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div className="pt-4 border-t border-slate-800/80 flex items-center justify-end gap-2.5">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onClose}
+            disabled={loading}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="primary"
+            isLoading={loading}
+          >
+            {initialProject ? 'Save Changes' : 'Create Project'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 };

@@ -2,6 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../features/auth/AuthContext';
 import { userService } from '../services/firebase/firestore/userService';
 import { storageService } from '../services/storage/storageService';
+import { PageHeader } from '../components/ui/PageHeader';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { Badge } from '../components/ui/Badge';
+import { Avatar } from '../components/ui/Avatar';
 import {
   User,
   Mail,
@@ -11,7 +17,6 @@ import {
   Save,
   CheckCircle2,
   AlertCircle,
-  Loader2,
   Upload,
   Lock,
 } from 'lucide-react';
@@ -92,163 +97,152 @@ export const ProfilePage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      <div>
-        <h1 className="text-2xl font-bold uppercase tracking-tight text-white flex items-center gap-2.5">
-          <User className="w-6 h-6 text-[#F5C400]" />
-          Operator Profile
-        </h1>
-        <p className="text-xs text-[#A0A0A0] mt-1">
-          Manage your verified field worker credentials and contact details
-        </p>
-      </div>
+    <div className="space-y-6 max-w-3xl animate-fade-in">
+      {/* Page Header */}
+      <PageHeader
+        title="Operator Profile"
+        description="Manage your verified field worker credentials, personal details, and site verification photo"
+        badge={
+          <Badge variant="amber" size="sm">
+            {userProfile?.role || 'EMPLOYEE'}
+          </Badge>
+        }
+      />
 
       {error && (
-        <div className="p-3.5 bg-[#D92D20]/10 border border-[#D92D20]/40 rounded text-xs text-[#D92D20] flex items-center gap-2.5">
-          <AlertCircle className="w-4 h-4 shrink-0" />
+        <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-400 flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
       {success && (
-        <div className="p-3.5 bg-[#2E9B5B]/15 border border-[#2E9B5B]/40 rounded text-xs text-[#2E9B5B] flex items-center gap-2.5">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
+        <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs text-emerald-400 flex items-center gap-3">
+          <CheckCircle2 className="w-5 h-5 shrink-0" />
           <span>Profile updated successfully.</span>
         </div>
       )}
 
-      {/* Immutable Security Badges */}
+      {/* Immutable Security Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="p-4 bg-[#1C1C1C] border border-[#2C2C2C] rounded-lg">
-          <span className="text-[10px] font-semibold uppercase text-[#A0A0A0] flex items-center gap-1.5 mb-1">
-            <Lock className="w-3 h-3 text-[#F5C400]" /> Assigned Role (Immutable)
+        <Card className="p-4">
+          <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1.5 mb-1.5">
+            <Lock className="w-3.5 h-3.5 text-amber-400" /> Assigned Role
           </span>
-          <span className="text-sm font-bold text-[#F5C400] font-mono">
+          <span className="text-sm font-semibold text-amber-400">
             {userProfile?.role}
           </span>
-        </div>
+        </Card>
 
-        <div className="p-4 bg-[#1C1C1C] border border-[#2C2C2C] rounded-lg">
-          <span className="text-[10px] font-semibold uppercase text-[#A0A0A0] flex items-center gap-1.5 mb-1">
-            <Building className="w-3 h-3 text-[#F5C400]" /> Organization Tenant
+        <Card className="p-4">
+          <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1.5 mb-1.5">
+            <Building className="w-3.5 h-3.5 text-blue-400" /> Organization Tenant
           </span>
-          <span className="text-xs font-semibold text-white truncate block">
+          <span className="text-xs font-semibold text-slate-200 truncate block">
             {company?.name || userProfile?.companyId}
           </span>
-        </div>
+        </Card>
 
-        <div className="p-4 bg-[#1C1C1C] border border-[#2C2C2C] rounded-lg">
-          <span className="text-[10px] font-semibold uppercase text-[#A0A0A0] flex items-center gap-1.5 mb-1">
-            <Shield className="w-3 h-3 text-[#F5C400]" /> Account Status
+        <Card className="p-4">
+          <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1.5 mb-1.5">
+            <Shield className="w-3.5 h-3.5 text-emerald-400" /> Account Status
           </span>
-          <span className="text-xs font-bold uppercase text-[#2E9B5B] block">
-            {userProfile?.status}
-          </span>
-        </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            <span className="text-xs font-semibold text-emerald-400 uppercase">
+              {userProfile?.status}
+            </span>
+          </div>
+        </Card>
       </div>
 
-      <form onSubmit={handleSave} className="bg-[#1C1C1C] border border-[#2C2C2C] rounded-lg p-6 space-y-6">
-        {/* Profile Picture */}
-        <div className="flex flex-col sm:flex-row items-center gap-5 pb-6 border-b border-[#2C2C2C]">
-          <div className="w-20 h-20 rounded-full bg-[#111111] border border-[#3C3C3C] overflow-hidden flex items-center justify-center shrink-0">
-            {photoPreview ? (
-              <img src={photoPreview} alt="User" className="w-full h-full object-cover" />
-            ) : (
-              <User className="w-10 h-10 text-[#666666]" />
-            )}
-          </div>
-          <div className="flex-1 text-center sm:text-left">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-white mb-1">
-              Field Profile Avatar
-            </h3>
-            <p className="text-xs text-[#A0A0A0] mb-3">
-              Upload a clear photo for site safety verification and badges
-            </p>
-            <label className="px-3.5 py-1.5 bg-[#252525] hover:bg-[#303030] text-xs font-semibold text-white border border-[#3C3C3C] rounded cursor-pointer inline-flex items-center gap-1.5">
-              <Upload className="w-3.5 h-3.5 text-[#F5C400]" />
-              Select Photo
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handlePhotoSelect}
-                className="hidden"
+      <form onSubmit={handleSave} className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <User className="w-4 h-4 text-amber-400" />
+              <span>Personal Information</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Avatar Row */}
+            <div className="flex flex-col sm:flex-row items-center gap-5 pb-6 border-b border-slate-800/80">
+              <div className="relative">
+                <Avatar
+                  name={`${firstName} ${lastName}`}
+                  src={photoPreview}
+                  size="xl"
+                />
+              </div>
+
+              <div className="flex-1 text-center sm:text-left">
+                <h4 className="text-sm font-medium text-slate-200 mb-1">
+                  Field Profile Photo
+                </h4>
+                <p className="text-xs text-slate-400 mb-3">
+                  Upload a clear portrait for site safety verification and digital credentials
+                </p>
+                <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-xs font-medium text-slate-200 cursor-pointer transition">
+                  <Upload className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Choose Photo</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoSelect}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* Form Fields */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="First Name"
+                required
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
               />
-            </label>
-          </div>
-        </div>
 
-        {/* Editable Profile Inputs */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1">
-              First Name <span className="text-[#F5C400]">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C400]"
-            />
-          </div>
+              <Input
+                label="Last Name"
+                required
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+              />
+            </div>
 
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1">
-              Last Name <span className="text-[#F5C400]">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C400]"
-            />
-          </div>
-        </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                type="email"
+                label="Email Address (Auth Controlled)"
+                disabled
+                leftIcon={<Mail className="w-4 h-4 text-slate-500" />}
+                value={userProfile?.email || ''}
+              />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1 flex items-center gap-1">
-              <Mail className="w-3 h-3 text-[#F5C400]" /> Email Address (Managed by Auth)
-            </label>
-            <input
-              type="email"
-              disabled
-              value={userProfile?.email || ''}
-              className="w-full bg-[#151515] border border-[#272727] rounded px-3 py-2 text-sm text-[#777777] cursor-not-allowed"
-            />
-          </div>
+              <Input
+                type="tel"
+                label="Mobile Phone Number"
+                leftIcon={<Phone className="w-4 h-4 text-slate-500" />}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+1 (416) 555-0199"
+              />
+            </div>
+          </CardContent>
+        </Card>
 
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1 flex items-center gap-1">
-              <Phone className="w-3 h-3 text-[#F5C400]" /> Mobile Phone Number
-            </label>
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+1 (416) 555-0199"
-              className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C400]"
-            />
-          </div>
-        </div>
-
-        <div className="pt-4 border-t border-[#2C2C2C] flex justify-end">
-          <button
+        <div className="flex justify-end">
+          <Button
             type="submit"
-            disabled={loading}
-            className="px-6 py-2.5 bg-[#F5C400] hover:bg-[#e0b400] text-black text-xs font-bold uppercase tracking-wider rounded transition cursor-pointer flex items-center gap-2 shadow-md shadow-[#F5C400]/20 disabled:opacity-50"
+            variant="primary"
+            size="md"
+            isLoading={loading}
+            leftIcon={<Save className="w-4 h-4" />}
           >
-            {loading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" /> Saving...
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4" /> Save Profile Changes
-              </>
-            )}
-          </button>
+            Save Profile Changes
+          </Button>
         </div>
       </form>
     </div>

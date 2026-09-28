@@ -1,6 +1,10 @@
 import React from 'react';
 import type { Employee } from '../../types';
-import { X, User, Mail, Phone, Calendar, Briefcase, Hash, Shield, Building } from 'lucide-react';
+import { Modal } from '../../components/ui/Modal';
+import { Button } from '../../components/ui/Button';
+import { Badge } from '../../components/ui/Badge';
+import { Avatar } from '../../components/ui/Avatar';
+import { User, Mail, Phone, Calendar, Briefcase, Hash, Shield, Building } from 'lucide-react';
 
 interface EmployeeDetailsModalProps {
   employee: Employee | null;
@@ -17,127 +21,129 @@ export const EmployeeDetailsModal: React.FC<EmployeeDetailsModalProps> = ({
 }) => {
   if (!employee) return null;
 
-  const statusColors = {
-    active: 'bg-[#2E9B5B]/20 text-[#2E9B5B] border-[#2E9B5B]/40',
-    pending: 'bg-amber-500/20 text-[#F5C400] border-[#F5C400]/40',
-    inactive: 'bg-[#666666]/20 text-[#A0A0A0] border-[#666666]/40',
-    suspended: 'bg-[#D92D20]/20 text-[#D92D20] border-[#D92D20]/40',
+  const getStatusBadgeVariant = (s: string): 'success' | 'amber' | 'neutral' | 'error' => {
+    switch (s) {
+      case 'active':
+        return 'success';
+      case 'pending':
+        return 'amber';
+      case 'suspended':
+        return 'error';
+      default:
+        return 'neutral';
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-xs">
-      <div className="bg-[#1C1C1C] border border-[#2C2C2C] rounded-lg max-w-lg w-full p-6 text-white shadow-2xl relative">
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-[#A0A0A0] hover:text-white"
-        >
-          <X className="w-5 h-5" />
-        </button>
-
-        <div className="flex items-center gap-4 mb-6 pb-6 border-b border-[#2C2C2C]">
-          <div className="w-16 h-16 rounded-full bg-[#111111] border border-[#3C3C3C] overflow-hidden flex items-center justify-center shrink-0">
-            {employee.profilePhotoUrl ? (
-              <img
-                src={employee.profilePhotoUrl}
-                alt={`${employee.firstName} ${employee.lastName}`}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <User className="w-8 h-8 text-[#666666]" />
-            )}
-          </div>
+    <Modal
+      isOpen={Boolean(employee)}
+      onClose={onClose}
+      title="Employee Profile"
+      description="Detailed workforce record and assigned role permissions"
+      maxWidth="lg"
+    >
+      <div className="space-y-6">
+        <div className="flex items-center gap-4 pb-5 border-b border-slate-800">
+          <Avatar
+            name={`${employee.firstName} ${employee.lastName}`}
+            src={employee.profilePhotoUrl}
+            size="lg"
+          />
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <h3 className="text-xl font-bold uppercase tracking-tight text-white">
+              <h3 className="text-lg font-bold text-slate-100">
                 {employee.firstName} {employee.lastName}
               </h3>
-              <span
-                className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase border ${
-                  statusColors[employee.status]
-                }`}
+              <Badge
+                size="sm"
+                variant={getStatusBadgeVariant(employee.status)}
               >
                 {employee.status}
-              </span>
+              </Badge>
             </div>
-            <p className="text-sm text-[#F5C400] font-medium">{employee.jobTitle}</p>
-            <p className="text-xs text-[#A0A0A0]">{employee.department || 'Field Operations'}</p>
+            <p className="text-sm text-amber-400 font-medium">{employee.jobTitle}</p>
+            <p className="text-xs text-slate-400">{employee.department || 'Field Operations'}</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 text-xs">
-          <div className="p-3 bg-[#111111] rounded border border-[#2C2C2C]">
-            <span className="text-[#A0A0A0] flex items-center gap-1.5 mb-1 uppercase font-semibold">
-              <Hash className="w-3.5 h-3.5 text-[#F5C400]" /> Employee ID
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800">
+            <span className="text-slate-400 flex items-center gap-1.5 mb-1 font-medium">
+              <Hash className="w-3.5 h-3.5 text-amber-400" /> Employee ID
             </span>
-            <span className="font-mono text-white text-sm font-bold">
+            <span className="font-mono text-slate-200 text-sm font-semibold">
               {employee.employeeNumber}
             </span>
           </div>
 
-          <div className="p-3 bg-[#111111] rounded border border-[#2C2C2C]">
-            <span className="text-[#A0A0A0] flex items-center gap-1.5 mb-1 uppercase font-semibold">
-              <Shield className="w-3.5 h-3.5 text-[#F5C400]" /> Role
+          <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800">
+            <span className="text-slate-400 flex items-center gap-1.5 mb-1 font-medium">
+              <Shield className="w-3.5 h-3.5 text-amber-400" /> Role Access
             </span>
-            <span className="font-bold text-[#F5C400]">{employee.role}</span>
+            <Badge size="sm" variant="amber">
+              {employee.role}
+            </Badge>
           </div>
 
-          <div className="p-3 bg-[#111111] rounded border border-[#2C2C2C]">
-            <span className="text-[#A0A0A0] flex items-center gap-1.5 mb-1 uppercase font-semibold">
-              <Mail className="w-3.5 h-3.5 text-[#F5C400]" /> Email
+          <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800">
+            <span className="text-slate-400 flex items-center gap-1.5 mb-1 font-medium">
+              <Mail className="w-3.5 h-3.5 text-slate-400" /> Work Email
             </span>
-            <span className="text-white truncate block">{employee.email}</span>
+            <span className="text-slate-200 truncate block">{employee.email}</span>
           </div>
 
-          <div className="p-3 bg-[#111111] rounded border border-[#2C2C2C]">
-            <span className="text-[#A0A0A0] flex items-center gap-1.5 mb-1 uppercase font-semibold">
-              <Phone className="w-3.5 h-3.5 text-[#F5C400]" /> Phone
+          <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800">
+            <span className="text-slate-400 flex items-center gap-1.5 mb-1 font-medium">
+              <Phone className="w-3.5 h-3.5 text-slate-400" /> Phone
             </span>
-            <span className="text-white">{employee.phone || 'Not provided'}</span>
+            <span className="text-slate-200">{employee.phone || 'Not provided'}</span>
           </div>
 
-          <div className="p-3 bg-[#111111] rounded border border-[#2C2C2C]">
-            <span className="text-[#A0A0A0] flex items-center gap-1.5 mb-1 uppercase font-semibold">
-              <Calendar className="w-3.5 h-3.5 text-[#F5C400]" /> Hire Date
+          <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800">
+            <span className="text-slate-400 flex items-center gap-1.5 mb-1 font-medium">
+              <Calendar className="w-3.5 h-3.5 text-slate-400" /> Hire Date
             </span>
-            <span className="text-white">{employee.hireDate || 'Not specified'}</span>
+            <span className="text-slate-200">{employee.hireDate || 'Not specified'}</span>
           </div>
 
-          <div className="p-3 bg-[#111111] rounded border border-[#2C2C2C]">
-            <span className="text-[#A0A0A0] flex items-center gap-1.5 mb-1 uppercase font-semibold">
-              <Building className="w-3.5 h-3.5 text-[#F5C400]" /> Company Tenant
+          <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800">
+            <span className="text-slate-400 flex items-center gap-1.5 mb-1 font-medium">
+              <Building className="w-3.5 h-3.5 text-slate-400" /> Tenant ID
             </span>
-            <span className="font-mono text-white text-[11px] truncate block">
+            <span className="font-mono text-slate-300 text-[11px] truncate block">
               {employee.companyId}
             </span>
           </div>
         </div>
 
-        <div className="mt-6 pt-4 border-t border-[#2C2C2C] flex items-center justify-between">
-          <span className="text-[11px] text-[#666666]">
+        <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
+          <span className="text-[11px] text-slate-500">
             Created: {new Date(employee.createdAt).toLocaleDateString()}
           </span>
 
           <div className="flex items-center gap-2">
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={onClose}
-              className="px-4 py-2 bg-[#252525] hover:bg-[#303030] text-xs font-semibold text-white rounded cursor-pointer"
             >
               Close
-            </button>
+            </Button>
             {canEdit && (
-              <button
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={() => {
                   onClose();
                   onEdit(employee);
                 }}
-                className="px-4 py-2 bg-[#F5C400] hover:bg-[#e0b400] text-black text-xs font-bold uppercase tracking-wider rounded cursor-pointer"
               >
                 Edit Employee
-              </button>
+              </Button>
             )}
           </div>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };

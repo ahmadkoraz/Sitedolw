@@ -40,11 +40,11 @@ const MainShell: React.FC = () => {
   // 1. Initial Firebase Auth Boot Loading State (Distinguishes auth initializing from unauthenticated)
   if (authInitializing) {
     return (
-      <div className="min-h-screen bg-[#111111] text-white flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen bg-[#0A0D14] text-slate-100 flex flex-col items-center justify-center p-4">
         <SiteflowLogo size="lg" showTagline />
-        <div className="mt-8 flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-[#A0A0A0]">
-          <Loader2 className="w-4 h-4 text-[#F5C400] animate-spin" />
-          <span>Connecting to Secure Authentication Gateway...</span>
+        <div className="mt-8 flex items-center gap-2.5 text-xs text-slate-400">
+          <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
+          <span>Connecting to secure operations gateway...</span>
         </div>
       </div>
     );
@@ -53,7 +53,7 @@ const MainShell: React.FC = () => {
   // 2. Unauthenticated Visitor Flow (Firebase Auth has definitively finished and returned no user)
   if (!user) {
     return (
-      <div className="min-h-screen bg-[#111111] text-white flex flex-col justify-center p-4 sm:p-8">
+      <div className="min-h-screen bg-[#0A0D14] text-slate-100 flex flex-col justify-center p-4 sm:p-8">
         <div className="w-full max-w-md mx-auto">
           {authView === 'login' ? (
             <LoginForm onSwitchToRegister={() => setAuthView('register')} />
@@ -61,8 +61,8 @@ const MainShell: React.FC = () => {
             <RegisterForm onSwitchToLogin={() => setAuthView('login')} />
           )}
         </div>
-        <div className="text-center text-[11px] text-[#555555] uppercase tracking-wider mt-8">
-          SITEFLOW &bull; Industrial Workforce & Construction Management Platform
+        <div className="text-center text-xs text-slate-500 tracking-wide mt-8">
+          SITEFLOW &bull; Enterprise Construction Operations Platform
         </div>
       </div>
     );
@@ -71,11 +71,11 @@ const MainShell: React.FC = () => {
   // 3. Authenticated Loading State (User session exists, verifying workforce profile & tenant)
   if (profileLoading && !userProfile && !profileError) {
     return (
-      <div className="min-h-screen bg-[#111111] text-white flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen bg-[#0A0D14] text-slate-100 flex flex-col items-center justify-center p-4">
         <SiteflowLogo size="lg" showTagline />
-        <div className="mt-8 flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-[#A0A0A0]">
-          <Loader2 className="w-4 h-4 text-[#F5C400] animate-spin" />
-          <span>Verifying Organization & Workforce Credentials...</span>
+        <div className="mt-8 flex items-center gap-2.5 text-xs text-slate-400">
+          <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
+          <span>Verifying organization and workforce credentials...</span>
         </div>
       </div>
     );
@@ -86,60 +86,60 @@ const MainShell: React.FC = () => {
   // User remains authenticated, NO automatic sign-out, NO loop to Login screen.
   if (profileError) {
     return (
-      <div className="min-h-screen bg-[#111111] text-white flex flex-col justify-between p-4 sm:p-8">
+      <div className="min-h-screen bg-[#0A0D14] text-slate-100 flex flex-col justify-between p-4 sm:p-8">
         <div className="max-w-xl mx-auto w-full pt-8">
-          <div className="flex justify-between items-center mb-8 border-b border-[#2C2C2C] pb-4">
+          <div className="flex justify-between items-center mb-8 border-b border-slate-800 pb-4">
             <SiteflowLogo size="md" showTagline />
             <button
               onClick={logout}
-              className="text-xs text-[#D92D20] hover:underline flex items-center gap-1.5 cursor-pointer"
+              className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1.5 cursor-pointer transition"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>Sign Out</span>
             </button>
           </div>
 
-          <div className="bg-[#1C1C1C] border border-[#D92D20]/40 rounded-lg p-6 sm:p-8 shadow-2xl space-y-6">
+          <div className="bg-[#0F131C] border border-red-500/30 rounded-xl p-6 sm:p-8 shadow-2xl space-y-6">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded bg-[#D92D20]/10 border border-[#D92D20]/30 flex items-center justify-center text-[#D92D20]">
+              <div className="w-10 h-10 rounded-lg bg-red-500/10 border border-red-500/25 flex items-center justify-center text-red-400">
                 <AlertCircle className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-white uppercase tracking-tight">
+                <h2 className="text-base font-semibold text-slate-100">
                   Tenant Data Synchronization Notice
                 </h2>
-                <p className="text-xs text-[#A0A0A0]">
+                <p className="text-xs text-slate-400">
                   Authentication succeeded, but organization data could not be verified
                 </p>
               </div>
             </div>
 
-            <div className="p-4 bg-[#141414] border border-[#252525] rounded text-xs space-y-2 font-mono">
-              <div className="flex justify-between py-1 border-b border-[#222222]">
-                <span className="text-[#777777]">Authentication:</span>
-                <span className="text-[#2E9B5B] font-bold">Authenticated</span>
+            <div className="p-4 bg-slate-950/60 border border-slate-800 rounded-lg text-xs space-y-2 font-mono">
+              <div className="flex justify-between py-1 border-b border-slate-800/80">
+                <span className="text-slate-500">Authentication:</span>
+                <span className="text-emerald-400 font-semibold">Authenticated</span>
               </div>
-              <div className="flex justify-between py-1 border-b border-[#222222]">
-                <span className="text-[#777777]">Email:</span>
-                <span className="text-white truncate max-w-[260px]">{user.email || 'N/A'}</span>
+              <div className="flex justify-between py-1 border-b border-slate-800/80">
+                <span className="text-slate-500">Email:</span>
+                <span className="text-slate-200 truncate max-w-[260px]">{user.email || 'N/A'}</span>
               </div>
-              <div className="flex justify-between py-1 border-b border-[#222222]">
-                <span className="text-[#777777]">Firebase UID:</span>
-                <span className="text-white truncate max-w-[260px]">{user.uid}</span>
+              <div className="flex justify-between py-1 border-b border-slate-800/80">
+                <span className="text-slate-500">Firebase UID:</span>
+                <span className="text-slate-200 truncate max-w-[260px]">{user.uid}</span>
               </div>
-              <div className="flex justify-between py-1 border-b border-[#222222]">
-                <span className="text-[#777777]">Profile:</span>
-                <span className={userProfile ? 'text-[#2E9B5B]' : 'text-[#F5C400]'}>
+              <div className="flex justify-between py-1 border-b border-slate-800/80">
+                <span className="text-slate-500">Profile:</span>
+                <span className={userProfile ? 'text-emerald-400' : 'text-amber-400'}>
                   {userProfile ? 'Found' : 'Error'}
                 </span>
               </div>
-              <div className="flex justify-between py-1 border-b border-[#222222]">
-                <span className="text-[#777777]">Company:</span>
-                <span className={company ? 'text-[#2E9B5B]' : 'text-[#D92D20]'}>
+              <div className="flex justify-between py-1 border-b border-slate-800/80">
+                <span className="text-slate-500">Company:</span>
+                <span className={company ? 'text-emerald-400' : 'text-red-400'}>
                   {company ? company.name : 'Error / Unreachable'}
                 </span>
               </div>
-              <div className="pt-2 text-[#D92D20] text-[11px] leading-relaxed">
+              <div className="pt-2 text-red-400 text-[11px] leading-relaxed">
                 Notice: {profileError}
               </div>
             </div>
@@ -148,7 +148,7 @@ const MainShell: React.FC = () => {
               <button
                 onClick={() => refreshUserData()}
                 disabled={profileLoading}
-                className="flex-1 py-3 bg-[#F5C400] hover:bg-[#e0b400] text-black font-bold text-xs uppercase tracking-wider rounded transition cursor-pointer flex items-center justify-center gap-2"
+                className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs rounded-lg transition cursor-pointer flex items-center justify-center gap-2 shadow-sm shadow-amber-500/20"
               >
                 {profileLoading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -160,8 +160,8 @@ const MainShell: React.FC = () => {
             </div>
           </div>
         </div>
-        <div className="text-center text-[11px] text-[#555555] uppercase tracking-wider py-4">
-          SITEFLOW &bull; Secure Industrial Operations
+        <div className="text-center text-xs text-slate-500 py-4">
+          SITEFLOW &bull; Enterprise Construction Operations Platform
         </div>
       </div>
     );

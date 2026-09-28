@@ -4,6 +4,7 @@ import { companyService } from '../../services/firebase/firestore/companyService
 import { auditService } from '../../services/firebase/firestore/auditService';
 import { invitationService } from '../../services/firebase/firestore/invitationService';
 import { SiteflowLogo } from '../../components/common/SiteflowLogo';
+import { stripUndefined } from '../../utils/cleanFirestoreData';
 import type { Company, UserProfile, Employee, Invitation } from '../../types';
 import {
   Building2,
@@ -265,42 +266,42 @@ export const OnboardingFlow: React.FC = () => {
       const companyId = `comp_${sanitizedSlug}_${Date.now().toString(36)}`;
 
       // 1. Prepare Company Document
-      const newCompany: Company = {
+      const newCompany: Company = stripUndefined({
         companyId,
         name: companyName.trim(),
         legalName: legalName.trim() || companyName.trim(),
         email: companyEmail.trim(),
-        phone: phone.trim() || undefined,
-        address: address.trim() || undefined,
-        city: city.trim() || undefined,
+        phone: phone.trim() ? phone.trim() : undefined,
+        address: address.trim() ? address.trim() : undefined,
+        city: city.trim() ? city.trim() : undefined,
         province: province.trim() || 'Ontario',
         country: country.trim() || 'Canada',
-        postalCode: postalCode.trim() || undefined,
+        postalCode: postalCode.trim() ? postalCode.trim() : undefined,
         timezone: timezone.trim() || 'America/Toronto',
         status: 'active',
         createdAt: timestamp,
         updatedAt: timestamp,
         createdBy: user.uid,
-      };
+      });
 
       // 2. Prepare User Profile with SUPER_ADMIN role (Company Creator Only)
-      const userProfile: UserProfile = {
+      const userProfile: UserProfile = stripUndefined({
         uid: user.uid,
         companyId,
         email: user.email || companyEmail.trim(),
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         displayName: `${firstName.trim()} ${lastName.trim()}`,
-        phone: adminPhone.trim() || undefined,
+        phone: adminPhone.trim() ? adminPhone.trim() : undefined,
         role: 'SUPER_ADMIN',
         status: 'active',
         createdAt: timestamp,
         updatedAt: timestamp,
         lastLoginAt: timestamp,
-      };
+      });
 
       // 3. Prepare Corresponding Employee Record
-      const employeeRecord: Employee = {
+      const employeeRecord: Employee = stripUndefined({
         employeeId: `emp_${user.uid.slice(0, 8)}`,
         userId: user.uid,
         companyId,
@@ -308,7 +309,7 @@ export const OnboardingFlow: React.FC = () => {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: user.email || companyEmail.trim(),
-        phone: adminPhone.trim() || undefined,
+        phone: adminPhone.trim() ? adminPhone.trim() : undefined,
         role: 'SUPER_ADMIN',
         jobTitle: jobTitle.trim() || 'Managing Director',
         department: 'Executive Operations',
@@ -316,7 +317,7 @@ export const OnboardingFlow: React.FC = () => {
         hireDate: new Date().toISOString().split('T')[0],
         createdAt: timestamp,
         updatedAt: timestamp,
-      };
+      });
 
       // 4. Phase 0.4B: Atomically commit Company + User + Employee in ONE single writeBatch()
       await companyService.createCompanyAtomic({

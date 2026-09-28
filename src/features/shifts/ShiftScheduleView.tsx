@@ -6,6 +6,12 @@ import { projectService } from '../../services/firebase/firestore/projectService
 import { jobSiteService } from '../../services/firebase/firestore/jobSiteService';
 import { auditService } from '../../services/firebase/firestore/auditService';
 import { ShiftModal } from './ShiftModal';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { Button } from '../../components/ui/Button';
+import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
+import { Badge } from '../../components/ui/Badge';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { Avatar } from '../../components/ui/Avatar';
 import type { Shift, Employee, Project, JobSite } from '../../types';
 import {
   Calendar,
@@ -20,6 +26,7 @@ import {
   AlertCircle,
   Loader2,
   CheckCircle2,
+  HardHat,
 } from 'lucide-react';
 
 export const ShiftScheduleView: React.FC = () => {
@@ -70,7 +77,7 @@ export const ShiftScheduleView: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [company, canManageShifts, userProfile?.uid]);
+  }, [company, canManageShifts, user?.uid]);
 
   useEffect(() => {
     loadData();
@@ -98,168 +105,181 @@ export const ShiftScheduleView: React.FC = () => {
         employeeId: shiftData.employeeId,
         startTime: shiftData.startTime,
         endTime: shiftData.endTime,
+        status: shiftData.status,
       },
     });
 
     await loadData();
   };
 
-  const employeeMap = useMemo(() => new Map(employees.map((e) => [e.userId || e.employeeId, e])), [employees]);
+  const employeeMap = useMemo(() => new Map(employees.map((e) => [e.employeeId, e])), [employees]);
   const projectMap = useMemo(() => new Map(projects.map((p) => [p.projectId, p])), [projects]);
   const jobSiteMap = useMemo(() => new Map(jobSites.map((s) => [s.jobSiteId, s])), [jobSites]);
 
   const filteredShifts = useMemo(() => {
     return shifts.filter((s) => {
+      if (statusFilter !== 'all' && s.status !== statusFilter) return false;
       if (workerFilter !== 'all' && s.employeeId !== workerFilter) return false;
       if (projectFilter !== 'all' && s.projectId !== projectFilter) return false;
-      if (statusFilter !== 'all' && s.status !== statusFilter) return false;
-
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const emp = employeeMap.get(s.employeeId);
-        const site = jobSiteMap.get(s.jobSiteId);
-        const nameMatch = emp ? `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(q) : false;
         const titleMatch = s.title.toLowerCase().includes(q);
-        const siteMatch = site ? site.name.toLowerCase().includes(q) : false;
-        if (!nameMatch && !titleMatch && !siteMatch) return false;
+        const emp = employeeMap.get(s.employeeId);
+        const workerMatch = emp ? `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(q) : false;
+        if (!titleMatch && !workerMatch) return false;
       }
-
       return true;
     });
-  }, [shifts, workerFilter, projectFilter, statusFilter, searchQuery, employeeMap, jobSiteMap]);
+  }, [shifts, statusFilter, workerFilter, projectFilter, searchQuery, employeeMap]);
 
-  const statusStyles: Record<string, string> = {
-    scheduled: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
-    in_progress: 'bg-[#2E9B5B]/15 text-[#2E9B5B] border-[#2E9B5B]/30',
-    completed: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
-    cancelled: 'bg-[#D92D20]/15 text-[#D92D20] border-[#D92D20]/30',
-    absent: 'bg-amber-500/15 text-[#F5C400] border-[#F5C400]/30',
+  const getStatusBadgeVariant = (status: string): 'success' | 'amber' | 'info' | 'neutral' => {
+    switch (status) {
+      case 'in_progress':
+        return 'success';
+      case 'scheduled':
+        return 'info';
+      case 'completed':
+        return 'neutral';
+      case 'cancelled':
+        return 'amber';
+      default:
+        return 'neutral';
+    }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold uppercase tracking-tight text-white flex items-center gap-2.5">
-            <Calendar className="w-6 h-6 text-[#F5C400]" />
-            {canManageShifts ? 'Workforce Dispatch & Shift Scheduling' : 'My Assigned Shifts'}
-          </h1>
-          <p className="text-xs text-[#A0A0A0] mt-1">
-            Site coverage assignments, trade worker schedules, and daily shift rosters
-          </p>
-        </div>
-
+    <div className="space-y-6 animate-fade-in">
+      {/* Top Page Header */}
+      <PageHeader
+        title={canManageShifts ? 'Shifts & Dispatch Schedule' : 'My Scheduled Shifts'}
+        description={
+          canManageShifts
+            ? 'Coordinate trade crews, assign site locations, and manage operational shift windows'
+            : 'View your upcoming assigned shifts and designated job site locations'
+        }
+        badge={
+          <Badge variant="neutral" size="sm">
+            {shifts.length} Total Shifts
+          </Badge>
+        }
+      >
         {canManageShifts && (
-          <button
+          <Button
+            variant="primary"
+            size="md"
+            leftIcon={<Plus className="w-4 h-4" />}
             onClick={() => {
               setSelectedForEdit(null);
               setIsModalOpen(true);
             }}
-            className="px-4 py-2.5 bg-[#F5C400] hover:bg-[#e0b400] text-black font-bold text-xs uppercase tracking-wider rounded transition cursor-pointer flex items-center justify-center gap-2 shadow-md shadow-[#F5C400]/15"
           >
-            <Plus className="w-4 h-4" />
             Dispatch Shift
-          </button>
+          </Button>
         )}
-      </div>
+      </PageHeader>
 
+      {/* Error Alert */}
       {error && (
-        <div className="p-3.5 bg-[#D92D20]/15 border border-[#D92D20]/40 rounded-lg text-xs text-[#D92D20] flex items-center gap-2.5">
-          <AlertCircle className="w-4 h-4 shrink-0" />
+        <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-400 flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      {/* Filter and Search Bar */}
-      <div className="bg-[#1C1C1C] border border-[#2C2C2C] rounded-lg p-4 flex flex-col md:flex-row gap-3">
-        <div className="flex-1 relative">
-          <Search className="w-4 h-4 text-[#A0A0A0] absolute left-3 top-3" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by worker name, shift title, or job site..."
-            className="w-full bg-[#111111] border border-[#2C2C2C] rounded pl-9 pr-3 py-2 text-xs text-white placeholder-[#555555] focus:outline-none focus:border-[#F5C400]"
-          />
-        </div>
+      {/* Filters Bar */}
+      <Card className="p-4">
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="flex-1 relative">
+            <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by shift title, employee name, or notes..."
+              className="w-full bg-slate-900/90 border border-slate-800 rounded-lg pl-10 pr-3.5 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500/60"
+            />
+          </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {canManageShifts && (
+          <div className="flex flex-wrap items-center gap-2">
+            {canManageShifts && (
+              <select
+                value={workerFilter}
+                onChange={(e) => setWorkerFilter(e.target.value)}
+                className="bg-slate-900/90 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
+              >
+                <option value="all">All Workers</option>
+                {employees.map((e) => (
+                  <option key={e.employeeId} value={e.employeeId}>
+                    {e.firstName} {e.lastName}
+                  </option>
+                ))}
+              </select>
+            )}
+
             <select
-              value={workerFilter}
-              onChange={(e) => setWorkerFilter(e.target.value)}
-              className="bg-[#111111] border border-[#2C2C2C] rounded px-2.5 py-2 text-xs text-white focus:outline-none focus:border-[#F5C400]"
+              value={projectFilter}
+              onChange={(e) => setProjectFilter(e.target.value)}
+              className="bg-slate-900/90 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
             >
-              <option value="all">All Workers</option>
-              {employees.map((emp) => (
-                <option key={emp.employeeId} value={emp.userId || emp.employeeId}>
-                  {emp.firstName} {emp.lastName}
+              <option value="all">All Projects</option>
+              {projects.map((p) => (
+                <option key={p.projectId} value={p.projectId}>
+                  {p.code} &mdash; {p.name}
                 </option>
               ))}
             </select>
-          )}
 
-          <select
-            value={projectFilter}
-            onChange={(e) => setProjectFilter(e.target.value)}
-            className="bg-[#111111] border border-[#2C2C2C] rounded px-2.5 py-2 text-xs text-white focus:outline-none focus:border-[#F5C400]"
-          >
-            <option value="all">All Projects</option>
-            {projects.map((p) => (
-              <option key={p.projectId} value={p.projectId}>
-                {p.code} &mdash; {p.name}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-[#111111] border border-[#2C2C2C] rounded px-2.5 py-2 text-xs text-white focus:outline-none focus:border-[#F5C400]"
-          >
-            <option value="all">All Statuses</option>
-            <option value="scheduled">Scheduled</option>
-            <option value="in_progress">In Progress</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="bg-slate-900/90 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
+            >
+              <option value="all">All Statuses</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="in_progress">In Progress</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
         </div>
-      </div>
+      </Card>
 
-      {/* Shifts List / Table */}
-      <div className="bg-[#1C1C1C] border border-[#2C2C2C] rounded-lg overflow-hidden shadow-xl">
+      {/* Shifts Table */}
+      <Card className="overflow-hidden">
         {loading ? (
-          <div className="py-16 text-center text-[#A0A0A0] flex flex-col items-center justify-center gap-3">
-            <Loader2 className="w-8 h-8 text-[#F5C400] animate-spin" />
-            <span className="text-xs uppercase tracking-wider font-semibold">Loading Shifts...</span>
+          <div className="py-20 text-center text-slate-400 flex flex-col items-center justify-center gap-3">
+            <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+            <span className="text-xs text-slate-400">Loading scheduled shifts...</span>
           </div>
         ) : filteredShifts.length === 0 ? (
-          <div className="py-16 text-center text-[#777777] p-6">
-            <Calendar className="w-12 h-12 mx-auto text-[#444444] mb-2" />
-            <h3 className="text-sm font-bold text-white uppercase tracking-tight mb-1">
-              No Shifts Scheduled
-            </h3>
-            <p className="text-xs text-[#666666] max-w-sm mx-auto mb-4">
-              {searchQuery || workerFilter !== 'all' || statusFilter !== 'all'
+          <EmptyState
+            icon={<Calendar className="w-8 h-8 text-slate-500" />}
+            title={searchQuery || workerFilter !== 'all' || statusFilter !== 'all' ? 'No matching shifts' : 'No shifts scheduled'}
+            description={
+              searchQuery || workerFilter !== 'all' || statusFilter !== 'all'
                 ? 'No shifts match your selected filter criteria.'
-                : 'No shifts scheduled yet. Dispatch trade workers to designated job sites.'}
-            </p>
-            {canManageShifts && (
-              <button
-                onClick={() => {
-                  setSelectedForEdit(null);
-                  setIsModalOpen(true);
-                }}
-                className="px-4 py-2 bg-[#F5C400] hover:bg-[#e0b400] text-black font-bold text-xs uppercase tracking-wider rounded transition cursor-pointer"
-              >
-                Dispatch First Shift
-              </button>
-            )}
-          </div>
+                : 'No shifts scheduled yet. Dispatch trade workers to designated job sites.'
+            }
+            action={
+              canManageShifts && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  leftIcon={<Plus className="w-4 h-4" />}
+                  onClick={() => {
+                    setSelectedForEdit(null);
+                    setIsModalOpen(true);
+                  }}
+                >
+                  Dispatch First Shift
+                </Button>
+              )
+            }
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-[#151515] border-b border-[#2C2C2C] text-[#A0A0A0] uppercase tracking-wider text-[11px]">
+              <thead className="bg-slate-900/80 border-b border-slate-800/80 text-slate-400 uppercase tracking-wider text-[11px] font-medium">
                 <tr>
                   <th className="py-3 px-4">Shift Details</th>
                   <th className="py-3 px-4">Assigned Worker</th>
@@ -270,7 +290,7 @@ export const ShiftScheduleView: React.FC = () => {
                   {canManageShifts && <th className="py-3 px-4 text-right">Actions</th>}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#252525]">
+              <tbody className="divide-y divide-slate-800/60">
                 {filteredShifts.map((shift) => {
                   const emp = employeeMap.get(shift.employeeId);
                   const project = projectMap.get(shift.projectId);
@@ -280,12 +300,12 @@ export const ShiftScheduleView: React.FC = () => {
                   const endDate = new Date(shift.endTime);
 
                   return (
-                    <tr key={shift.shiftId} className="hover:bg-[#222222] transition-colors">
+                    <tr key={shift.shiftId} className="hover:bg-slate-900/40 transition-colors">
                       {/* Title & Notes */}
                       <td className="py-3.5 px-4">
-                        <div className="font-semibold text-white text-xs">{shift.title}</div>
+                        <div className="font-semibold text-slate-100 text-xs">{shift.title}</div>
                         {shift.notes && (
-                          <div className="text-[11px] text-[#777777] line-clamp-1 mt-0.5 max-w-xs">
+                          <div className="text-[11px] text-slate-400 line-clamp-1 mt-0.5 max-w-xs">
                             {shift.notes}
                           </div>
                         )}
@@ -294,14 +314,16 @@ export const ShiftScheduleView: React.FC = () => {
                       {/* Worker */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-[#111111] border border-[#333333] flex items-center justify-center font-bold text-[10px] text-[#A0A0A0] shrink-0">
-                            {emp ? `${emp.firstName[0]}${emp.lastName[0]}` : 'W'}
-                          </div>
+                          <Avatar
+                            name={emp ? `${emp.firstName} ${emp.lastName}` : 'Worker'}
+                            src={emp?.profilePhotoUrl}
+                            size="sm"
+                          />
                           <div>
-                            <span className="font-semibold text-white block">
+                            <span className="font-medium text-slate-200 block">
                               {emp ? `${emp.firstName} ${emp.lastName}` : shift.employeeId}
                             </span>
-                            <span className="text-[10px] text-[#777777] font-mono">
+                            <span className="text-[10px] text-slate-500 font-mono">
                               {emp?.employeeNumber || 'WORKER'}
                             </span>
                           </div>
@@ -310,45 +332,44 @@ export const ShiftScheduleView: React.FC = () => {
 
                       {/* Site & Project */}
                       <td className="py-3.5 px-4">
-                        <div className="text-white font-medium flex items-center gap-1">
-                          <MapPin className="w-3 h-3 text-[#F5C400]" />
-                          {site?.name || 'Assigned Site'}
+                        <div className="text-slate-200 font-medium flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          <span>{site?.name || 'Assigned Site'}</span>
                         </div>
-                        <div className="text-[10px] text-[#777777] flex items-center gap-1 mt-0.5">
-                          <Building className="w-3 h-3 text-[#A0A0A0]" />
-                          {project ? `${project.code}` : 'General Project'}
+                        <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                          <Building className="w-3 h-3 text-slate-500 shrink-0" />
+                          <span>{project ? `${project.code} - ${project.name}` : 'General Project'}</span>
                         </div>
                       </td>
 
-                      {/* Timing */}
-                      <td className="py-3.5 px-4">
-                        <div className="text-white font-mono">
-                          {startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} &rarr;{' '}
-                          {endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                        <div className="text-[10px] text-[#777777]">
+                      {/* Shift Window */}
+                      <td className="py-3.5 px-4 font-mono text-slate-300 text-[11px]">
+                        <div>
                           {startDate.toLocaleDateString([], {
                             weekday: 'short',
                             month: 'short',
                             day: 'numeric',
                           })}
                         </div>
+                        <div className="text-slate-500 text-[10px]">
+                          {startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} &rarr;{' '}
+                          {endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
                       </td>
 
                       {/* Hours */}
-                      <td className="py-3.5 px-4 font-mono text-[#F5C400] font-bold">
-                        {shift.scheduledHours} hrs
+                      <td className="py-3.5 px-4 font-semibold text-slate-200">
+                        {shift.scheduledHours}h
                       </td>
 
                       {/* Status */}
                       <td className="py-3.5 px-4">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
-                            statusStyles[shift.status] || 'bg-[#333333] text-[#A0A0A0]'
-                          }`}
+                        <Badge
+                          size="sm"
+                          variant={getStatusBadgeVariant(shift.status)}
                         >
                           {shift.status.replace('_', ' ')}
-                        </span>
+                        </Badge>
                       </td>
 
                       {/* Actions */}
@@ -359,7 +380,8 @@ export const ShiftScheduleView: React.FC = () => {
                               setSelectedForEdit(shift);
                               setIsModalOpen(true);
                             }}
-                            className="p-1.5 hover:bg-[#2C2C2C] text-[#A0A0A0] hover:text-[#F5C400] rounded cursor-pointer transition"
+                            className="p-1.5 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded transition cursor-pointer"
+                            title="Edit Shift"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
@@ -372,7 +394,7 @@ export const ShiftScheduleView: React.FC = () => {
             </table>
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Modal */}
       {company && (

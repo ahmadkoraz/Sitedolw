@@ -7,6 +7,7 @@
 import { doc, getDoc, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { db, firebaseStatus } from '../firebaseApp';
 import { handleFirestoreError, OperationType } from '../errorHandler';
+import { stripUndefined } from '../../../utils/cleanFirestoreData';
 import type { Company, UserProfile, Employee } from '../../../types';
 
 const SANDBOX_COMPANIES_KEY = 'siteflow_sandbox_companies';
@@ -49,11 +50,12 @@ export const companyService = {
    * Create new company during onboarding flow
    */
   async createCompany(company: Company): Promise<void> {
+    const cleaned = stripUndefined(company);
     if (db && firebaseStatus.isConfigured) {
       const path = `companies/${company.companyId}`;
       try {
         const ref = doc(db, 'companies', company.companyId);
-        await setDoc(ref, company);
+        await setDoc(ref, cleaned);
       } catch (err) {
         handleFirestoreError(err, OperationType.CREATE, path);
       }
@@ -61,7 +63,7 @@ export const companyService = {
       // Sandbox fallback
       const raw = localStorage.getItem(SANDBOX_COMPANIES_KEY);
       const companies: Record<string, Company> = raw ? JSON.parse(raw) : {};
-      companies[company.companyId] = company;
+      companies[company.companyId] = cleaned;
       localStorage.setItem(SANDBOX_COMPANIES_KEY, JSON.stringify(companies));
     }
   },
@@ -73,10 +75,10 @@ export const companyService = {
     companyId: string,
     updates: Partial<Omit<Company, 'companyId' | 'createdAt' | 'createdBy'>>
   ): Promise<void> {
-    const payload = {
+    const payload = stripUndefined({
       ...updates,
       updatedAt: new Date().toISOString(),
-    };
+    });
 
     if (db && firebaseStatus.isConfigured) {
       const path = `companies/${companyId}`;
@@ -122,15 +124,19 @@ export const companyService = {
       throw new Error('Onboarding integrity error: Initial company creator must have SUPER_ADMIN role.');
     }
 
+    const cleanCompany = stripUndefined(company);
+    const cleanUserProfile = stripUndefined(userProfile);
+    const cleanEmployee = stripUndefined(employee);
+
     if (db && firebaseStatus.isConfigured) {
       const batch = writeBatch(db);
       const compRef = doc(db, 'companies', company.companyId);
       const userRef = doc(db, 'users', userProfile.uid);
       const empRef = doc(db, 'companies', company.companyId, 'employees', employee.employeeId);
 
-      batch.set(compRef, company);
-      batch.set(userRef, userProfile);
-      batch.set(empRef, employee);
+      batch.set(compRef, cleanCompany);
+      batch.set(userRef, cleanUserProfile);
+      batch.set(empRef, cleanEmployee);
 
       try {
         await batch.commit();
@@ -141,17 +147,17 @@ export const companyService = {
       // Sandbox fallback: atomic synchronous storage assignment
       const rawComp = localStorage.getItem(SANDBOX_COMPANIES_KEY);
       const companies: Record<string, Company> = rawComp ? JSON.parse(rawComp) : {};
-      companies[company.companyId] = company;
+      companies[company.companyId] = cleanCompany;
       localStorage.setItem(SANDBOX_COMPANIES_KEY, JSON.stringify(companies));
 
       const rawUsers = localStorage.getItem('siteflow_sandbox_user_profiles');
       const users: Record<string, UserProfile> = rawUsers ? JSON.parse(rawUsers) : {};
-      users[userProfile.uid] = userProfile;
+      users[userProfile.uid] = cleanUserProfile;
       localStorage.setItem('siteflow_sandbox_user_profiles', JSON.stringify(users));
 
       const rawEmps = localStorage.getItem('siteflow_sandbox_employees');
       const emps: Employee[] = rawEmps ? JSON.parse(rawEmps) : [];
-      emps.push(employee);
+      emps.push(cleanEmployee);
       localStorage.setItem('siteflow_sandbox_employees', JSON.stringify(emps));
     }
   },

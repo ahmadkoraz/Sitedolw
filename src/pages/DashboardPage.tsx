@@ -5,24 +5,32 @@ import { invitationService } from '../services/firebase/firestore/invitationServ
 import { auditService } from '../services/firebase/firestore/auditService';
 import { projectService } from '../services/firebase/firestore/projectService';
 import { jobSiteService } from '../services/firebase/firestore/jobSiteService';
+import { attendanceService } from '../services/firebase/firestore/attendanceService';
 import { InvitationModal } from '../features/invitations/InvitationModal';
 import { WorkforceDashboardWidget } from '../components/WorkforceDashboardWidget';
 import { TimeClockCard } from '../features/attendance/TimeClockCard';
 import { AttendanceHistory } from '../features/attendance/AttendanceHistory';
-import type { Employee, Invitation, AuditLog, Project, JobSite } from '../types';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
+import { MetricCard } from '../components/ui/MetricCard';
+import { Badge } from '../components/ui/Badge';
+import { Button } from '../components/ui/Button';
+import { Avatar } from '../components/ui/Avatar';
+import type { Employee, Invitation, AuditLog, Project, JobSite, TimeEntry } from '../types';
 import {
   Users,
-  UserCheck,
+  Building,
+  MapPin,
+  Clock,
+  Calendar,
   Mail,
-  Activity,
-  HardHat,
   ArrowRight,
   Shield,
-  Building2,
-  Calendar,
-  Clock,
-  MapPin,
-  Building,
+  Activity,
+  HardHat,
+  Plus,
+  Briefcase,
+  AlertCircle,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface DashboardPageProps {
@@ -30,13 +38,14 @@ interface DashboardPageProps {
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) => {
-  const { userProfile, company, isAdmin, isSuperAdmin, role } = useAuth();
+  const { user, userProfile, company, isAdmin, isSuperAdmin, role } = useAuth();
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [recentLogs, setRecentLogs] = useState<AuditLog[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [jobSites, setJobSites] = useState<JobSite[]>([]);
+  const [activeEntries, setActiveEntries] = useState<TimeEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInviteModal, setShowInviteModal] = useState(false);
 
@@ -48,18 +57,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
     setLoading(true);
     try {
       if (isManagement) {
-        const [empData, invData, logData, projData, siteData] = await Promise.all([
+        const [empData, invData, logData, projData, siteData, liveEntries] = await Promise.all([
           employeeService.getEmployeesByCompany(company.companyId),
           invitationService.getInvitations(company.companyId),
-          auditService.getAuditLogs(company.companyId, 5),
+          auditService.getAuditLogs(company.companyId, 6),
           projectService.getProjectsByCompany(company.companyId),
           jobSiteService.getJobSitesByCompany(company.companyId),
+          attendanceService.getTimeEntries(company.companyId, { status: 'clocked_in' }),
         ]);
         setEmployees(empData);
         setInvitations(invData);
         setRecentLogs(logData);
         setProjects(projData);
         setJobSites(siteData);
+        setActiveEntries(liveEntries);
       }
     } catch (err) {
       console.error('Error loading dashboard metrics:', err);
@@ -72,200 +83,276 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
     loadData();
   }, [loadData]);
 
-  // Derived metrics (strictly real data, 0 if empty)
+  // Derived real metrics
   const totalEmployees = employees.length;
   const activeEmployees = employees.filter((e) => e.status === 'active').length;
+  const currentlyWorking = activeEntries.filter((e) => e.status === 'clocked_in').length;
   const totalProjects = projects.length;
   const totalJobSites = jobSites.length;
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  };
+
+  const formatLogAction = (action: string) => {
+    return action
+      .replace(/_/g, ' ')
+      .toLowerCase()
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  };
 
   // -------------------------------------------------------------
   // MANAGEMENT / ADMIN / SUPERVISOR DASHBOARD
   // -------------------------------------------------------------
   if (isManagement) {
     return (
-      <div className="space-y-6">
-        {/* Page Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#242424] pb-5">
+      <div className="space-y-8 animate-fade-in">
+        {/* EXECUTIVE HEADER */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-slate-800/80">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-[#F5C400]/15 text-[#F5C400] border border-[#F5C400]/30">
-                {role}
+            <div className="flex items-center gap-2 mb-1.5">
+              <Badge variant={isSuperAdmin ? 'amber' : 'neutral'} size="sm">
+                {role || 'MANAGEMENT'}
+              </Badge>
+              <span className="text-xs text-slate-400">
+                {company?.name} · Operations Hub
               </span>
-              <span className="text-xs text-[#A0A0A0]">Workforce & Field Operations Console</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-white flex items-center gap-2.5">
-              <Building2 className="w-7 h-7 text-[#F5C400]" />
-              {company?.name || 'Company Dashboard'}
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-100">
+              {getGreeting()}, {userProfile?.firstName || 'Operator'}
             </h1>
-            <p className="text-xs text-[#A0A0A0] mt-1 font-mono">
-              Tenant ID: {company?.companyId} &bull; Timezone: {company?.timezone || 'America/Toronto'}
+            <p className="text-xs text-slate-400 mt-1">
+              Real-time overview of active workforce, field attendance, and site operations.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <button
+          {/* Quick Actions Toolbar */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<Clock className="w-4 h-4 text-amber-400" />}
               onClick={() => onNavigateTab('attendance')}
-              className="px-3.5 py-2 bg-[#252525] hover:bg-[#303030] text-white border border-[#3C3C3C] text-xs font-semibold uppercase tracking-wider rounded cursor-pointer transition flex items-center gap-1.5"
             >
-              <Clock className="w-3.5 h-3.5 text-[#F5C400]" />
               Timecards
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<Calendar className="w-4 h-4 text-amber-400" />}
               onClick={() => onNavigateTab('shifts')}
-              className="px-3.5 py-2 bg-[#252525] hover:bg-[#303030] text-white border border-[#3C3C3C] text-xs font-semibold uppercase tracking-wider rounded cursor-pointer transition flex items-center gap-1.5"
             >
-              <Calendar className="w-3.5 h-3.5 text-[#F5C400]" />
-              Dispatch Shifts
-            </button>
-            <button
-              onClick={() => setShowInviteModal(true)}
-              className="px-3.5 py-2 bg-[#F5C400] hover:bg-[#e0b400] text-black text-xs font-bold uppercase tracking-wider rounded cursor-pointer transition flex items-center gap-1.5 shadow-md shadow-[#F5C400]/15"
-            >
-              <Mail className="w-3.5 h-3.5" />
-              Invite Team
-            </button>
+              Dispatch
+            </Button>
+            {(isAdmin || isSuperAdmin) && (
+              <Button
+                variant="primary"
+                size="sm"
+                leftIcon={<Mail className="w-4 h-4" />}
+                onClick={() => setShowInviteModal(true)}
+              >
+                Invite Team
+              </Button>
+            )}
           </div>
         </div>
 
-        {/* Workforce Dashboard Widget: Active Clock-in Status & Current Shift Duration */}
-        <WorkforceDashboardWidget onNavigateTab={onNavigateTab} />
-
-        {/* 4 Quantitative Operations Metric Cards (Real stats, no mock invent) */}
+        {/* PRIMARY OPERATIONS METRIC CARDS (100% REAL DATA) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Total Employees */}
-          <div className="p-5 bg-[#1C1C1C] border border-[#2C2C2C] rounded-lg shadow-md">
-            <div className="flex items-center justify-between text-[#A0A0A0] mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider">Total Workforce</span>
-              <Users className="w-4 h-4 text-[#F5C400]" />
-            </div>
-            <div className="text-3xl font-black text-white font-mono">{totalEmployees}</div>
-            <div className="text-[11px] text-[#777777] mt-1">
-              {activeEmployees} active for dispatch
-            </div>
-          </div>
-
-          {/* Active Projects */}
-          <div className="p-5 bg-[#1C1C1C] border border-[#2C2C2C] rounded-lg shadow-md">
-            <div className="flex items-center justify-between text-[#A0A0A0] mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider">Active Projects</span>
-              <Building className="w-4 h-4 text-[#2E9B5B]" />
-            </div>
-            <div className="text-3xl font-black text-[#2E9B5B] font-mono">{totalProjects}</div>
-            <div className="text-[11px] text-[#777777] mt-1">Under contract</div>
-          </div>
-
-          {/* Job Sites & Geofences */}
-          <div className="p-5 bg-[#1C1C1C] border border-[#2C2C2C] rounded-lg shadow-md">
-            <div className="flex items-center justify-between text-[#A0A0A0] mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider">Configured Sites</span>
-              <MapPin className="w-4 h-4 text-[#F5C400]" />
-            </div>
-            <div className="text-3xl font-black text-[#F5C400] font-mono">{totalJobSites}</div>
-            <div className="text-[11px] text-[#777777] mt-1">GPS geofences active</div>
-          </div>
-
-          {/* Compliance & Security */}
-          <div className="p-5 bg-[#1C1C1C] border border-[#2C2C2C] rounded-lg shadow-md">
-            <div className="flex items-center justify-between text-[#A0A0A0] mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider">Attendance State</span>
-              <Shield className="w-4 h-4 text-blue-400" />
-            </div>
-            <div className="text-lg font-bold text-white uppercase tracking-tight">Verified GPS</div>
-            <div className="text-[11px] text-[#777777] mt-1">Server timestamp sync</div>
-          </div>
+          <MetricCard
+            label="Total Workforce"
+            value={totalEmployees}
+            subtext={`${activeEmployees} active for dispatch`}
+            icon={<Users className="w-5 h-5 text-amber-400" />}
+            onClick={() => onNavigateTab('employees')}
+          />
+          <MetricCard
+            label="Currently On-Site"
+            value={currentlyWorking}
+            subtext={currentlyWorking > 0 ? `${currentlyWorking} clocked-in now` : 'No active shifts right now'}
+            icon={<Clock className="w-5 h-5 text-emerald-400" />}
+            iconBgColor="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+            onClick={() => onNavigateTab('attendance')}
+          />
+          <MetricCard
+            label="Active Projects"
+            value={totalProjects}
+            subtext={totalProjects === 1 ? '1 project under contract' : `${totalProjects} projects under contract`}
+            icon={<Building className="w-5 h-5 text-blue-400" />}
+            iconBgColor="bg-blue-500/10 text-blue-400 border border-blue-500/20"
+            onClick={() => onNavigateTab('projects')}
+          />
+          <MetricCard
+            label="Configured Job Sites"
+            value={totalJobSites}
+            subtext={`${totalJobSites} GPS geofences configured`}
+            icon={<MapPin className="w-5 h-5 text-amber-400" />}
+            onClick={() => onNavigateTab('jobsites')}
+          />
         </div>
 
-        {/* Operational Modules & Recent Activity */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Quick Roster Snapshot */}
-          <div className="lg:col-span-2 bg-[#1C1C1C] border border-[#2C2C2C] rounded-lg p-5">
-            <div className="flex items-center justify-between pb-3 border-b border-[#2C2C2C] mb-4">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-white flex items-center gap-2">
-                <Users className="w-4 h-4 text-[#F5C400]" />
-                Recent Workforce Additions
-              </h3>
-              <button
-                onClick={() => onNavigateTab('employees')}
-                className="text-xs text-[#F5C400] hover:underline flex items-center gap-1 font-semibold"
-              >
-                Full Directory
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+        {/* LIVE WORKFORCE RADAR WIDGET */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h2 className="text-base font-semibold text-slate-100 tracking-tight">
+                Live Field Workforce
+              </h2>
+              <p className="text-xs text-slate-400">
+                Active time entries, current shift durations, and site assignments
+              </p>
             </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+              onClick={() => onNavigateTab('attendance')}
+            >
+              Full Roster
+            </Button>
+          </div>
+          <WorkforceDashboardWidget onNavigateTab={onNavigateTab} />
+        </div>
 
-            {employees.length === 0 ? (
-              <div className="py-10 text-center text-xs text-[#777777]">
-                <Users className="w-8 h-8 mx-auto text-[#444444] mb-2" />
-                No employee records found. Click &quot;Manage Roster&quot; to register workers.
-              </div>
-            ) : (
-              <div className="divide-y divide-[#252525]">
-                {employees.slice(0, 4).map((emp) => (
-                  <div key={emp.employeeId} className="py-2.5 flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-full bg-[#111111] border border-[#333333] flex items-center justify-center font-bold text-[10px] text-[#A0A0A0]">
-                        {emp.firstName[0]}{emp.lastName[0]}
-                      </div>
-                      <div>
-                        <span className="font-semibold text-white block">
-                          {emp.firstName} {emp.lastName}
-                        </span>
-                        <span className="text-[11px] text-[#777777]">{emp.jobTitle}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-[10px] text-[#A0A0A0]">{emp.employeeNumber}</span>
-                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-[#252525] text-white">
-                        {emp.role}
-                      </span>
-                    </div>
+        {/* SPLIT SECTION: PROJECTS / SITES & RECENT COMPLIANCE AUDIT */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Active Projects & Sites Snapshot */}
+          <div className="lg:col-span-2 space-y-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Building className="w-4 h-4 text-amber-400" />
+                    <span>Active Projects</span>
+                  </CardTitle>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Job sites and field status across client contracts
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+                  onClick={() => onNavigateTab('projects')}
+                >
+                  View All
+                </Button>
+              </CardHeader>
+              <CardContent className="p-0">
+                {projects.length === 0 ? (
+                  <div className="py-12 text-center text-xs text-slate-500">
+                    <Building className="w-8 h-8 mx-auto text-slate-600 mb-2 opacity-50" />
+                    No active projects found. Create your first project to organize job sites.
                   </div>
-                ))}
-              </div>
-            )}
+                ) : (
+                  <div className="divide-y divide-slate-800/80">
+                    {projects.slice(0, 4).map((proj) => {
+                      const projSites = jobSites.filter((s) => s.projectId === proj.projectId);
+                      return (
+                        <div
+                          key={proj.projectId}
+                          className="p-4 flex items-center justify-between hover:bg-slate-900/40 transition-colors"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-9 h-9 rounded-lg bg-slate-800 border border-slate-700/80 flex items-center justify-center text-slate-300 shrink-0 font-mono text-xs font-semibold">
+                              {proj.code ? proj.code.slice(0, 4) : 'PRJ'}
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="text-sm font-medium text-slate-200 truncate">
+                                {proj.name}
+                              </h4>
+                              <p className="text-xs text-slate-400 truncate flex items-center gap-2 mt-0.5">
+                                <span>{proj.clientName || 'Direct Client'}</span>
+                                {projSites.length > 0 && (
+                                  <>
+                                    <span>·</span>
+                                    <span>{projSites.length} site{projSites.length > 1 ? 's' : ''}</span>
+                                  </>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Badge
+                              size="sm"
+                              variant={
+                                proj.status === 'in_progress'
+                                  ? 'success'
+                                  : proj.status === 'completed'
+                                  ? 'info'
+                                  : 'neutral'
+                              }
+                            >
+                              {proj.status}
+                            </Badge>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
-          {/* Recent Audit / Security Activity */}
-          <div className="bg-[#1C1C1C] border border-[#2C2C2C] rounded-lg p-5">
-            <div className="flex items-center justify-between pb-3 border-b border-[#2C2C2C] mb-4">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-white flex items-center gap-2">
-                <Activity className="w-4 h-4 text-[#F5C400]" />
-                Recent Audit Activity
-              </h3>
-              <button
-                onClick={() => onNavigateTab('audit')}
-                className="text-xs text-[#F5C400] hover:underline flex items-center gap-1 font-semibold"
-              >
-                Logs
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            {recentLogs.length === 0 ? (
-              <div className="py-10 text-center text-xs text-[#777777]">
-                <Activity className="w-8 h-8 mx-auto text-[#444444] mb-2" />
-                No administrative activity logged yet.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {recentLogs.map((log) => (
-                  <div key={log.auditId} className="p-2.5 bg-[#111111] rounded border border-[#272727] text-xs">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-mono text-[10px] font-bold text-[#F5C400]">
-                        {log.action}
-                      </span>
-                      <span className="text-[10px] text-[#666666]">
-                        {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                    <div className="text-[11px] text-[#A0A0A0] truncate">
-                      By <strong className="text-white">{log.actorUserId.slice(0, 12)}</strong> ({log.actorRole})
-                    </div>
+          {/* Compliance & Activity Stream */}
+          <div>
+            <Card className="h-full flex flex-col justify-between">
+              <div>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Shield className="w-4 h-4 text-amber-400" />
+                      <span>Security & Audit</span>
+                    </CardTitle>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Immutable trail of admin actions
+                    </p>
                   </div>
-                ))}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+                    onClick={() => onNavigateTab('audit')}
+                  >
+                    All Logs
+                  </Button>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {recentLogs.length === 0 ? (
+                    <div className="py-12 text-center text-xs text-slate-500">
+                      <Activity className="w-8 h-8 mx-auto text-slate-600 mb-2 opacity-50" />
+                      No recent administrative events recorded.
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-800/80">
+                      {recentLogs.map((log) => (
+                        <div key={log.auditId} className="p-3.5 hover:bg-slate-900/40 transition-colors text-xs">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-medium text-slate-200">
+                              {formatLogAction(log.action)}
+                            </span>
+                            <span className="text-[11px] text-slate-500">
+                              {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-400 flex items-center justify-between">
+                            <span className="truncate">Resource: {log.resourceType}</span>
+                            <Badge size="sm" variant="neutral">
+                              {log.actorRole}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
               </div>
-            )}
+            </Card>
           </div>
         </div>
 
@@ -285,15 +372,35 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigateTab }) =
   }
 
   // -------------------------------------------------------------
-  // REGULAR EMPLOYEE DASHBOARD (Mobile-First Time Clock Terminal)
+  // REGULAR FIELD WORKER DASHBOARD
   // -------------------------------------------------------------
   return (
-    <div className="space-y-6">
-      {/* 1. Big High-Contrast Glove-Friendly Mobile Time Clock */}
+    <div className="space-y-8 animate-fade-in max-w-4xl mx-auto">
+      {/* Field Worker Header */}
+      <div className="pb-4 border-b border-slate-800/80">
+        <div className="flex items-center gap-2 mb-1.5">
+          <Badge variant="amber" size="sm">
+            Worker Portal
+          </Badge>
+          <span className="text-xs text-slate-400">
+            {company?.name}
+          </span>
+        </div>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-100">
+          {getGreeting()}, {userProfile?.firstName || 'Operator'}
+        </h1>
+        <p className="text-xs text-slate-400 mt-1">
+          Use the punch terminal below to record attendance at your assigned job site.
+        </p>
+      </div>
+
+      {/* 1. Large Ergonomic Time Clock Terminal */}
       <TimeClockCard onAttendanceChanged={loadData} />
 
-      {/* 2. Worker's Attendance & Shift History */}
-      <AttendanceHistory allowManualEdit={false} />
+      {/* 2. Worker Attendance Records */}
+      <div className="pt-4">
+        <AttendanceHistory allowManualEdit={false} />
+      </div>
     </div>
   );
 };

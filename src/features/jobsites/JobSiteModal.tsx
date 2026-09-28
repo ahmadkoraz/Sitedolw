@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import type { JobSite, Project, JobSiteStatus } from '../../types';
 import { getPurposeLimitedPosition } from '../../utils/geofence';
+import { Modal } from '../../components/ui/Modal';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { Select } from '../../components/ui/Select';
 import {
-  X,
   MapPin,
   Compass,
   AlertCircle,
-  Loader2,
   Navigation,
-  Sliders,
   ShieldCheck,
   Building,
 } from 'lucide-react';
@@ -78,8 +79,6 @@ export const JobSiteModal: React.FC<JobSiteModalProps> = ({
     setError(null);
   }, [initialSite, isOpen, projects]);
 
-  if (!isOpen) return null;
-
   const handleDetectCurrentPosition = async () => {
     setDetectingGps(true);
     setError(null);
@@ -109,12 +108,8 @@ export const JobSiteModal: React.FC<JobSiteModalProps> = ({
       setError('Job site name is required.');
       return;
     }
-    if (!projectId) {
-      setError('Please associate this site with a Project.');
-      return;
-    }
     if (!address.trim()) {
-      setError('Address is required.');
+      setError('Street address is required.');
       return;
     }
     if (isNaN(latitude) || isNaN(longitude)) {
@@ -136,9 +131,9 @@ export const JobSiteModal: React.FC<JobSiteModalProps> = ({
         city: city.trim(),
         province: province.trim(),
         postalCode: postalCode.trim() || undefined,
-        latitude: Number(latitude),
-        longitude: Number(longitude),
-        radiusMeters: Number(radiusMeters),
+        latitude,
+        longitude,
+        radiusMeters,
         enforceGeofence,
         status,
         notes: notes.trim() || undefined,
@@ -156,303 +151,225 @@ export const JobSiteModal: React.FC<JobSiteModalProps> = ({
     }
   };
 
+  const projectOptions = projects.map((p) => ({
+    value: p.projectId,
+    label: `${p.code} - ${p.name}`,
+  }));
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-xs overflow-y-auto">
-      <div className="bg-[#1C1C1C] border border-[#2C2C2C] rounded-lg max-w-2xl w-full p-6 text-white shadow-2xl relative my-8">
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-[#A0A0A0] hover:text-white"
-        >
-          <X className="w-5 h-5" />
-        </button>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={initialSite ? 'Edit Job Site Location' : 'Configure New Job Site'}
+      description="Set physical construction boundaries, geofence radius, and project linkage"
+      maxWidth="xl"
+    >
+      {error && (
+        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-xs text-red-400 flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
 
-        <h3 className="text-xl font-bold uppercase tracking-tight mb-1 text-white flex items-center gap-2">
-          <MapPin className="w-5 h-5 text-[#F5C400]" />
-          {initialSite ? 'Edit Job Site & Geofence' : 'Register New Job Site & Geofence'}
-        </h3>
-        <p className="text-xs text-[#A0A0A0] mb-5">
-          Define physical location boundaries and enforce automated attendance geofencing
-        </p>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Input
+            label="Job Site Name"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Apex Site A - Tower Foundation"
+          />
 
-        {error && (
-          <div className="mb-4 p-3 bg-[#D92D20]/15 border border-[#D92D20]/40 rounded text-xs text-[#D92D20] flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
+          <Select
+            label="Associated Project Contract"
+            value={projectId}
+            onChange={(e) => setProjectId(e.target.value)}
+            options={projectOptions.length > 0 ? projectOptions : [{ value: '', label: 'No Projects Available' }]}
+          />
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1">
-                Site Name <span className="text-[#F5C400]">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Bay Street Commercial Tower"
-                className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C400]"
-              />
+        <Input
+          label="Street Address"
+          required
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          placeholder="e.g. 100 University Avenue"
+        />
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <Input
+            label="City"
+            required
+            value={city}
+            onChange={(e) => setCity(e.target.value)}
+          />
+
+          <Select
+            label="Province / State"
+            value={province}
+            onChange={(e) => setProvince(e.target.value)}
+            options={[
+              { value: 'Ontario', label: 'Ontario' },
+              { value: 'British Columbia', label: 'British Columbia' },
+              { value: 'Alberta', label: 'Alberta' },
+              { value: 'Quebec', label: 'Quebec' },
+              { value: 'Manitoba', label: 'Manitoba' },
+              { value: 'Nova Scotia', label: 'Nova Scotia' },
+            ]}
+          />
+
+          <Input
+            label="Postal Code"
+            value={postalCode}
+            onChange={(e) => setPostalCode(e.target.value)}
+            placeholder="M5J 2H7"
+          />
+        </div>
+
+        {/* GPS Geofence Configuration Section */}
+        <div className="p-4 bg-slate-900/60 rounded-xl border border-slate-800 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Compass className="w-4 h-4 text-amber-400" />
+              <h4 className="text-xs font-semibold text-slate-200">
+                GPS Coordinates & Radar Geofence
+              </h4>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1 flex items-center gap-1.5">
-                <Building className="w-3.5 h-3.5 text-[#F5C400]" /> Associated Project <span className="text-[#F5C400]">*</span>
-              </label>
-              <select
-                required
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
-                className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C400]"
-              >
-                <option value="">Select Project</option>
-                {projects.map((p) => (
-                  <option key={p.projectId} value={p.projectId}>
-                    {p.code} &mdash; {p.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1">
-                Street Address <span className="text-[#F5C400]">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="100 Bay Street"
-                className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C400]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1">
-                City / Municipality
-              </label>
-              <input
-                type="text"
-                required
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C400]"
-              />
-            </div>
-          </div>
-
-          {/* GPS Coordinates & Quick Presets */}
-          <div className="p-4 bg-[#111111] rounded border border-[#2C2C2C] space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-[#252525]">
-              <span className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
-                <Compass className="w-4 h-4 text-[#F5C400]" />
-                Geofence GPS Coordinates
-              </span>
-              <button
-                type="button"
-                onClick={handleDetectCurrentPosition}
-                disabled={detectingGps}
-                className="text-xs text-[#F5C400] hover:underline font-semibold flex items-center gap-1 cursor-pointer"
-              >
-                {detectingGps ? (
-                  <>
-                    <Loader2 className="w-3 h-3 animate-spin" /> Detecting...
-                  </>
-                ) : (
-                  <>
-                    <Navigation className="w-3 h-3" /> Detect Device Location
-                  </>
-                )}
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-semibold uppercase text-[#A0A0A0] mb-1">
-                  Latitude
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  required
-                  value={latitude}
-                  onChange={(e) => setLatitude(Number(e.target.value))}
-                  className="w-full bg-[#1C1C1C] border border-[#333333] rounded px-3 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-[#F5C400]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold uppercase text-[#A0A0A0] mb-1">
-                  Longitude
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  required
-                  value={longitude}
-                  onChange={(e) => setLongitude(Number(e.target.value))}
-                  className="w-full bg-[#1C1C1C] border border-[#333333] rounded px-3 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-[#F5C400]"
-                />
-              </div>
-            </div>
-
-            {/* Quick Presets */}
-            <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[11px] text-[#A0A0A0]">
-              <span>Quick Presets:</span>
-              <button
-                type="button"
-                onClick={() => handleApplyPreset(43.6487, -79.3817, 'Toronto', '100 King St West')}
-                className="px-2 py-0.5 bg-[#252525] hover:bg-[#303030] text-white rounded cursor-pointer"
-              >
-                Financial District (Toronto)
-              </button>
-              <button
-                type="button"
-                onClick={() => handleApplyPreset(43.5932, -79.6421, 'Mississauga', '300 City Centre Dr')}
-                className="px-2 py-0.5 bg-[#252525] hover:bg-[#303030] text-white rounded cursor-pointer"
-              >
-                Mississauga Hub
-              </button>
-              <button
-                type="button"
-                onClick={() => handleApplyPreset(43.8561, -79.3370, 'Markham', '101 Town Centre Blvd')}
-                className="px-2 py-0.5 bg-[#252525] hover:bg-[#303030] text-white rounded cursor-pointer"
-              >
-                Markham Tech Park
-              </button>
-            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              isLoading={detectingGps}
+              leftIcon={<Navigation className="w-3.5 h-3.5 text-amber-400" />}
+              onClick={handleDetectCurrentPosition}
+            >
+              Use Current GPS
+            </Button>
           </div>
 
-          {/* Radius Slider & Radar Visualizer */}
-          <div className="p-4 bg-[#111111] rounded border border-[#2C2C2C] space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
-                <Sliders className="w-4 h-4 text-[#F5C400]" />
-                Geofence Radius Perimeter
-              </span>
-              <span className="font-mono text-xs font-bold text-[#F5C400] bg-[#1C1C1C] px-2.5 py-1 rounded border border-[#F5C400]/30">
-                {radiusMeters} meters
-              </span>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input
+              type="number"
+              step="0.000001"
+              label="Latitude"
+              required
+              value={latitude}
+              onChange={(e) => setLatitude(parseFloat(e.target.value))}
+            />
 
+            <Input
+              type="number"
+              step="0.000001"
+              label="Longitude"
+              required
+              value={longitude}
+              onChange={(e) => setLongitude(parseFloat(e.target.value))}
+            />
+          </div>
+
+          {/* Quick Metro Presets */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            <span className="text-[11px] text-slate-500 mr-1">Quick Presets:</span>
+            <button
+              type="button"
+              onClick={() => handleApplyPreset(43.6532, -79.3832, 'Toronto', '100 Queen St W')}
+              className="text-[11px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+            >
+              Toronto Downtown
+            </button>
+            <button
+              type="button"
+              onClick={() => handleApplyPreset(43.5890, -79.6441, 'Mississauga', '300 City Centre Dr')}
+              className="text-[11px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+            >
+              Mississauga
+            </button>
+            <button
+              type="button"
+              onClick={() => handleApplyPreset(49.2827, -123.1207, 'Vancouver', '800 Robson St')}
+              className="text-[11px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+            >
+              Vancouver
+            </button>
+          </div>
+
+          {/* Geofence Perimeter Slider */}
+          <div className="pt-2 border-t border-slate-800/80">
+            <div className="flex items-center justify-between text-xs text-slate-300 mb-1.5">
+              <span className="font-medium">Verification Perimeter Radius</span>
+              <span className="font-mono text-amber-400 font-semibold">{radiusMeters} meters</span>
+            </div>
             <input
               type="range"
               min="25"
-              max="1000"
+              max="500"
               step="25"
               value={radiusMeters}
-              onChange={(e) => setRadiusMeters(Number(e.target.value))}
-              className="w-full accent-[#F5C400] cursor-pointer"
+              onChange={(e) => setRadiusMeters(parseInt(e.target.value))}
+              className="w-full accent-amber-500 bg-slate-800 h-1.5 rounded-lg cursor-pointer"
             />
-            <div className="flex justify-between text-[10px] text-[#666666] font-mono">
+            <div className="flex justify-between text-[10px] text-slate-500 mt-1">
               <span>25m (Tight Building)</span>
-              <span>100m (Standard Site)</span>
-              <span>500m (Civil/Highway)</span>
-              <span>1000m (Expansive Quarry)</span>
-            </div>
-
-            {/* Visual Geofence Radar Canvas */}
-            <div className="h-28 w-full bg-[#181818] border border-[#2A2A2A] rounded-md relative flex items-center justify-center overflow-hidden">
-              <div className="absolute inset-0 bg-[radial-gradient(#333333_1px,transparent_1px)] [background-size:12px_12px] opacity-40" />
-              
-              {/* Outer Boundary Ring */}
-              <div
-                className="rounded-full border-2 border-dashed border-[#F5C400]/60 bg-[#F5C400]/10 flex items-center justify-center transition-all duration-300 shadow-lg shadow-[#F5C400]/5"
-                style={{
-                  width: `${Math.min(100, Math.max(30, (radiusMeters / 1000) * 100))}%`,
-                  height: `${Math.min(90, Math.max(30, (radiusMeters / 1000) * 90))}%`,
-                }}
-              >
-                {/* Center Pin */}
-                <div className="w-4 h-4 rounded-full bg-[#F5C400] flex items-center justify-center shadow-md shadow-black">
-                  <div className="w-1.5 h-1.5 rounded-full bg-black" />
-                </div>
-              </div>
-
-              <div className="absolute bottom-2 left-2 text-[10px] font-mono text-[#A0A0A0] bg-black/60 px-2 py-0.5 rounded">
-                Center: {latitude.toFixed(4)}, {longitude.toFixed(4)}
-              </div>
-            </div>
-
-            {/* Geofence Enforcement Policy Checkbox */}
-            <div className="pt-2 flex items-center justify-between">
-              <label className="flex items-center gap-2 cursor-pointer text-xs">
-                <input
-                  type="checkbox"
-                  checked={enforceGeofence}
-                  onChange={(e) => setEnforceGeofence(e.target.checked)}
-                  className="rounded accent-[#F5C400] w-4 h-4 cursor-pointer"
-                />
-                <span className="font-semibold text-white">
-                  Enforce Site Geofence at Clock In
-                </span>
-              </label>
-
-              <span className="text-[11px] text-[#A0A0A0]">
-                {enforceGeofence ? 'Requires supervisor override if off-site' : 'Soft audit warning only'}
-              </span>
+              <span>150m (Standard Site)</span>
+              <span>500m (Large Infrastructure)</span>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1">
-                Operational Status
-              </label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as JobSiteStatus)}
-                className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C400]"
-              >
-                <option value="active">Active (Dispatches permitted)</option>
-                <option value="inactive">Inactive</option>
-                <option value="closed">Closed / Handed Over</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#A0A0A0] mb-1">
-                Safety Notes & Gate Info
-              </label>
-              <input
-                type="text"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Gate 2 access via North ramp. Hard hat mandatory."
-                className="w-full bg-[#111111] border border-[#2C2C2C] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C400]"
-              />
-            </div>
+          {/* Enforce Geofence Checkbox */}
+          <div className="flex items-center gap-2.5 pt-1">
+            <input
+              type="checkbox"
+              id="enforceGeofence"
+              checked={enforceGeofence}
+              onChange={(e) => setEnforceGeofence(e.target.checked)}
+              className="w-4 h-4 rounded text-amber-500 focus:ring-amber-500/40 bg-slate-900 border-slate-700 cursor-pointer"
+            />
+            <label htmlFor="enforceGeofence" className="text-xs text-slate-300 cursor-pointer">
+              Enforce strict perimeter: alert supervisors if employee clocks in outside radius
+            </label>
           </div>
+        </div>
 
-          <div className="pt-4 flex items-center justify-end gap-3 border-t border-[#2C2C2C]">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-[#252525] hover:bg-[#303030] text-xs font-semibold text-white rounded cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-6 py-2 bg-[#F5C400] hover:bg-[#e0b400] text-black text-xs font-bold uppercase tracking-wider rounded transition cursor-pointer flex items-center gap-2 shadow-md shadow-[#F5C400]/20 disabled:opacity-50"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" /> Saving...
-                </>
-              ) : (
-                'Save Job Site & Geofence'
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Select
+            label="Site Operational Status"
+            value={status}
+            onChange={(e) => setStatus(e.target.value as JobSiteStatus)}
+            options={[
+              { value: 'active', label: 'Active (Open for Dispatch)' },
+              { value: 'inactive', label: 'Inactive' },
+              { value: 'completed', label: 'Completed' },
+            ]}
+          />
+
+          <Input
+            label="Site Safety / Dispatch Notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="e.g. PPE required, check in with trailer supervisor"
+          />
+        </div>
+
+        <div className="pt-4 border-t border-slate-800/80 flex items-center justify-end gap-2.5">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onClose}
+            disabled={loading}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="primary"
+            isLoading={loading}
+          >
+            {initialSite ? 'Save Changes' : 'Create Job Site'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 };

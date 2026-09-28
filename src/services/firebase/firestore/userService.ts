@@ -7,6 +7,7 @@
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db, firebaseStatus } from '../firebaseApp';
 import { handleFirestoreError, OperationType } from '../errorHandler';
+import { stripUndefined } from '../../../utils/cleanFirestoreData';
 import type { UserProfile } from '../../../types';
 
 const SANDBOX_USERS_KEY = 'siteflow_sandbox_user_profiles';
@@ -42,18 +43,19 @@ export const userService = {
    * Create initial user profile
    */
   async createUserProfile(profile: UserProfile): Promise<void> {
+    const cleaned = stripUndefined(profile);
     if (db && firebaseStatus.isConfigured) {
       const path = `users/${profile.uid}`;
       try {
         const ref = doc(db, 'users', profile.uid);
-        await setDoc(ref, profile);
+        await setDoc(ref, cleaned);
       } catch (err) {
         handleFirestoreError(err, OperationType.CREATE, path);
       }
     } else {
       const raw = localStorage.getItem(SANDBOX_USERS_KEY);
       const users: Record<string, UserProfile> = raw ? JSON.parse(raw) : {};
-      users[profile.uid] = profile;
+      users[profile.uid] = cleaned;
       localStorage.setItem(SANDBOX_USERS_KEY, JSON.stringify(users));
     }
   },
@@ -67,11 +69,11 @@ export const userService = {
     uid: string,
     updates: Partial<Pick<UserProfile, 'firstName' | 'lastName' | 'phone' | 'photoUrl'>>
   ): Promise<void> {
-    const payload = {
+    const payload = stripUndefined({
       ...updates,
       displayName: `${updates.firstName || ''} ${updates.lastName || ''}`.trim() || undefined,
       updatedAt: new Date().toISOString(),
-    };
+    });
 
     if (db && firebaseStatus.isConfigured) {
       const path = `users/${uid}`;
