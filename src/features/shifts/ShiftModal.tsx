@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import type { Shift, ShiftStatus, Employee, Project, JobSite } from '../../types';
+import { useAuth } from '../auth/AuthContext';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
-import { AlertCircle, Calendar, Clock, User, MapPin, Building } from 'lucide-react';
+import { AlertCircle, Calendar, Clock, User, MapPin, Building, Info } from 'lucide-react';
 
 interface ShiftModalProps {
   isOpen: boolean;
@@ -27,6 +28,8 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
   jobSites,
   companyId,
 }) => {
+  const { user } = useAuth();
+
   const [title, setTitle] = useState('');
   const [employeeId, setEmployeeId] = useState('');
   const [projectId, setProjectId] = useState('');
@@ -53,9 +56,12 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
       setNotes(initialShift.notes || '');
     } else {
       setTitle('Regular Day Shift');
+      const firstProject = projects[0]?.projectId || '';
+      const matchingSites = jobSites.filter((s) => s.projectId === firstProject);
+
       setEmployeeId(employees[0]?.employeeId || '');
-      setProjectId(projects[0]?.projectId || '');
-      setJobSiteId(jobSites[0]?.jobSiteId || '');
+      setProjectId(firstProject);
+      setJobSiteId(matchingSites[0]?.jobSiteId || jobSites[0]?.jobSiteId || '');
 
       // Tomorrow 07:00 to 15:30
       const tomorrow = new Date();
@@ -82,6 +88,31 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
     }
   }, [startTime, endTime]);
 
+  // Filter job sites based on selected project to maintain strict relational integrity
+  const availableJobSites = projectId
+    ? jobSites.filter((s) => s.projectId === projectId)
+    : jobSites;
+
+  const handleProjectChange = (newProjectId: string) => {
+    setProjectId(newProjectId);
+    const sitesForProj = jobSites.filter((s) => s.projectId === newProjectId);
+    if (sitesForProj.length > 0) {
+      if (!sitesForProj.some((s) => s.jobSiteId === jobSiteId)) {
+        setJobSiteId(sitesForProj[0].jobSiteId);
+      }
+    } else {
+      setJobSiteId('');
+    }
+  };
+
+  const handleJobSiteChange = (newJobSiteId: string) => {
+    setJobSiteId(newJobSiteId);
+    const selectedSite = jobSites.find((s) => s.jobSiteId === newJobSiteId);
+    if (selectedSite && selectedSite.projectId) {
+      setProjectId(selectedSite.projectId);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -91,23 +122,36 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
       return;
     }
     if (!employeeId) {
-      setError('Please select a worker for this shift.');
+      setError('Please select a workforce member for this shift.');
       return;
     }
     if (!projectId) {
-      setError('Please select an associated project.');
+      setError('Please select an active project contract.');
       return;
     }
     if (!jobSiteId) {
-      setError('Please select an active job site.');
+      setError('Please select an active job site associated with the project.');
       return;
     }
+
+    const selectedSite = jobSites.find((s) => s.jobSiteId === jobSiteId);
+    if (selectedSite && selectedSite.projectId !== projectId) {
+      setError('The selected job site does not belong to the selected project contract.');
+      return;
+    }
+
     if (!startTime || !endTime) {
-      setError('Start time and end time are required.');
+      setError('Shift start time and end time are required.');
       return;
     }
     if (new Date(endTime) <= new Date(startTime)) {
       setError('Shift end time must be after the start time.');
+      return;
+    }
+
+    const assignedByUid = user?.uid || initialShift?.assignedBy;
+    if (!assignedByUid) {
+      setError('Authenticated supervisor credentials required to dispatch shift.');
       return;
     }
 
@@ -116,10 +160,13 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
       const shiftId = initialShift?.shiftId || `shift_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
       const timestamp = new Date().toISOString();
 
+      const selectedEmployee = employees.find((emp) => emp.employeeId === employeeId);
+
       const shiftData: Shift = {
         shiftId,
         companyId,
         employeeId,
+        assignedUserId: selectedEmployee?.userId || undefined,
         projectId,
         jobSiteId,
         title: title.trim(),
@@ -128,7 +175,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
         scheduledHours,
         status,
         notes: notes.trim() || undefined,
-        assignedBy: initialShift?.assignedBy || 'system',
+        assignedBy: assignedByUid,
         createdAt: initialShift?.createdAt || timestamp,
         updatedAt: timestamp,
       };
@@ -152,10 +199,16 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
     label: `${p.code} - ${p.name}`,
   }));
 
-  const jobSiteOptions = jobSites.map((s) => ({
+  const jobSiteOptions = availableJobSites.map((s) => ({
     value: s.jobSiteId,
     label: `${s.name} (${s.city})`,
   }));
+
+  const missingDependencies: string[] = [];
+  if (employees.length === 0) missingDependencies.push('Employees');
+  if (projects.length === 0) missingDependencies.push('Projects');
+  if (jobSites.length === 0) missingDependencies.push('Job Sites');
+  const hasMissingDeps = missingDependencies.length > 0;
 
   return (
     <Modal
@@ -165,6 +218,16 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
       description="Assign trade worker to designated project and job site with scheduled operational hours"
       maxWidth="lg"
     >
+      {hasMissingDeps && (
+        <div className="mb-4 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-300 flex items-start gap-2.5">
+          <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <div>
+            <strong className="block text-slate-100 font-semibold mb-0.5">Missing Prerequisites</strong>
+            In SITEFLOW, dispatching a shift requires: {missingDependencies.join(', ')}. Please configure these prerequisites before dispatching shifts.
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-xs text-red-400 flex items-center gap-2">
           <AlertCircle className="w-4 h-4 shrink-0" />
@@ -194,7 +257,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
             label="Project Contract"
             required
             value={projectId}
-            onChange={(e) => setProjectId(e.target.value)}
+            onChange={(e) => handleProjectChange(e.target.value)}
             options={projectOptions.length > 0 ? projectOptions : [{ value: '', label: 'No Projects Available' }]}
           />
 
@@ -202,8 +265,8 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
             label="Assigned Job Site"
             required
             value={jobSiteId}
-            onChange={(e) => setJobSiteId(e.target.value)}
-            options={jobSiteOptions.length > 0 ? jobSiteOptions : [{ value: '', label: 'No Job Sites Available' }]}
+            onChange={(e) => handleJobSiteChange(e.target.value)}
+            options={jobSiteOptions.length > 0 ? jobSiteOptions : [{ value: '', label: 'No Job Sites Available for Selected Project' }]}
           />
         </div>
 
@@ -273,6 +336,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
             type="submit"
             variant="primary"
             isLoading={loading}
+            disabled={hasMissingDeps}
           >
             {initialShift ? 'Save Changes' : 'Dispatch Shift'}
           </Button>

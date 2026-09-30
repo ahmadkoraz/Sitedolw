@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { Project, ProjectStatus, Employee } from '../../types';
+import { useAuth } from '../auth/AuthContext';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -23,6 +24,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   employees,
   companyId,
 }) => {
+  const { user } = useAuth();
+
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [description, setDescription] = useState('');
@@ -71,6 +74,12 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       return;
     }
 
+    const creatorUid = user?.uid || initialProject?.createdBy;
+    if (!creatorUid) {
+      setError('Authenticated operator credentials required to record project.');
+      return;
+    }
+
     setLoading(true);
     try {
       const projectId = initialProject?.projectId || `prj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -89,7 +98,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
         managerId: managerId || undefined,
         createdAt: initialProject?.createdAt || timestamp,
         updatedAt: timestamp,
-        createdBy: initialProject?.createdBy || 'system',
+        createdBy: creatorUid,
       };
 
       await onSave(projectData);
@@ -157,10 +166,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
             onChange={(e) => setStatus(e.target.value as ProjectStatus)}
             options={[
               { value: 'planning', label: 'Planning' },
-              { value: 'active', label: 'Active' },
               { value: 'in_progress', label: 'In Progress' },
               { value: 'on_hold', label: 'On Hold' },
               { value: 'completed', label: 'Completed' },
+              { value: 'archived', label: 'Archived' },
             ]}
           />
         </div>

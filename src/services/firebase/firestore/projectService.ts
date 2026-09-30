@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore';
 import { db, firebaseStatus } from '../firebaseApp';
 import { handleFirestoreError, OperationType } from '../errorHandler';
+import { stripUndefined } from '../../../utils/cleanFirestoreData';
 import type { Project } from '../../../types';
 
 const SANDBOX_PROJECTS_KEY = 'siteflow_sandbox_projects';
@@ -73,19 +74,22 @@ export const projectService = {
   async createProject(companyId: string, projectData: Project): Promise<void> {
     if (!projectData.name?.trim()) throw new Error('Project name is required.');
     if (!projectData.code?.trim()) throw new Error('Project code is required.');
+    if (!projectData.createdBy?.trim()) throw new Error('Authenticated creator identity (UID) is required.');
+
+    const cleanData = stripUndefined(projectData);
 
     if (db && firebaseStatus.isConfigured) {
       const path = `companies/${companyId}/projects/${projectData.projectId}`;
       try {
         const ref = doc(db, 'companies', companyId, 'projects', projectData.projectId);
-        await setDoc(ref, projectData);
+        await setDoc(ref, cleanData);
       } catch (err) {
         handleFirestoreError(err, OperationType.CREATE, path);
       }
     } else {
       const raw = localStorage.getItem(SANDBOX_PROJECTS_KEY);
       const all: Project[] = raw ? JSON.parse(raw) : [];
-      all.push(projectData);
+      all.push(cleanData as Project);
       localStorage.setItem(SANDBOX_PROJECTS_KEY, JSON.stringify(all));
     }
   },

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { JobSite, Project, JobSiteStatus } from '../../types';
 import { getPurposeLimitedPosition } from '../../utils/geofence';
+import { useAuth } from '../auth/AuthContext';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -12,6 +13,7 @@ import {
   Navigation,
   ShieldCheck,
   Building,
+  Info,
 } from 'lucide-react';
 
 interface JobSiteModalProps {
@@ -31,6 +33,8 @@ export const JobSiteModal: React.FC<JobSiteModalProps> = ({
   projects,
   companyId,
 }) => {
+  const { user } = useAuth();
+
   const [name, setName] = useState('');
   const [projectId, setProjectId] = useState('');
   const [address, setAddress] = useState('');
@@ -108,12 +112,34 @@ export const JobSiteModal: React.FC<JobSiteModalProps> = ({
       setError('Job site name is required.');
       return;
     }
-    if (!address.trim()) {
-      setError('Street address is required.');
+    if (!projectId || !projectId.trim()) {
+      setError('A valid Project reference is required. Job sites must be linked to an existing project contract.');
       return;
     }
-    if (isNaN(latitude) || isNaN(longitude)) {
-      setError('Valid latitude and longitude coordinates are required.');
+    if (projects.length === 0 || !projects.some((p) => p.projectId === projectId)) {
+      setError('The selected project does not exist in this company.');
+      return;
+    }
+    if (!address.trim()) {
+      setError('Physical street address is required.');
+      return;
+    }
+    if (isNaN(latitude) || latitude < -90 || latitude > 90) {
+      setError('Latitude must be a valid coordinate between -90 and +90 degrees.');
+      return;
+    }
+    if (isNaN(longitude) || longitude < -180 || longitude > 180) {
+      setError('Longitude must be a valid coordinate between -180 and +180 degrees.');
+      return;
+    }
+    if (isNaN(radiusMeters) || radiusMeters < 10 || radiusMeters > 5000) {
+      setError('Geofence radius must be a positive number between 10 and 5,000 meters.');
+      return;
+    }
+
+    const creatorUid = user?.uid || initialSite?.createdBy;
+    if (!creatorUid) {
+      setError('Authenticated operator credentials required to record job site.');
       return;
     }
 
@@ -139,7 +165,7 @@ export const JobSiteModal: React.FC<JobSiteModalProps> = ({
         notes: notes.trim() || undefined,
         createdAt: initialSite?.createdAt || timestamp,
         updatedAt: timestamp,
-        createdBy: initialSite?.createdBy || 'system',
+        createdBy: creatorUid,
       };
 
       await onSave(siteData);
@@ -156,6 +182,8 @@ export const JobSiteModal: React.FC<JobSiteModalProps> = ({
     label: `${p.code} - ${p.name}`,
   }));
 
+  const hasNoProjects = projects.length === 0;
+
   return (
     <Modal
       isOpen={isOpen}
@@ -164,6 +192,16 @@ export const JobSiteModal: React.FC<JobSiteModalProps> = ({
       description="Set physical construction boundaries, geofence radius, and project linkage"
       maxWidth="xl"
     >
+      {hasNoProjects && (
+        <div className="mb-4 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-300 flex items-start gap-2.5">
+          <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <div>
+            <strong className="block text-slate-100 font-semibold mb-0.5">Project Contract Required</strong>
+            In SITEFLOW, all job sites are strictly scoped under an authorized project contract. Please create a project contract before configuring job sites.
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-xs text-red-400 flex items-center gap-2">
           <AlertCircle className="w-4 h-4 shrink-0" />
@@ -183,8 +221,10 @@ export const JobSiteModal: React.FC<JobSiteModalProps> = ({
 
           <Select
             label="Associated Project Contract"
+            required
             value={projectId}
             onChange={(e) => setProjectId(e.target.value)}
+            disabled={hasNoProjects}
             options={projectOptions.length > 0 ? projectOptions : [{ value: '', label: 'No Projects Available' }]}
           />
         </div>
@@ -253,7 +293,7 @@ export const JobSiteModal: React.FC<JobSiteModalProps> = ({
             <Input
               type="number"
               step="0.000001"
-              label="Latitude"
+              label="Latitude (-90 to +90)"
               required
               value={latitude}
               onChange={(e) => setLatitude(parseFloat(e.target.value))}
@@ -262,7 +302,7 @@ export const JobSiteModal: React.FC<JobSiteModalProps> = ({
             <Input
               type="number"
               step="0.000001"
-              label="Longitude"
+              label="Longitude (-180 to +180)"
               required
               value={longitude}
               onChange={(e) => setLongitude(parseFloat(e.target.value))}
@@ -275,21 +315,21 @@ export const JobSiteModal: React.FC<JobSiteModalProps> = ({
             <button
               type="button"
               onClick={() => handleApplyPreset(43.6532, -79.3832, 'Toronto', '100 Queen St W')}
-              className="text-[11px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+              className="text-[11px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
             >
               Toronto Downtown
             </button>
             <button
               type="button"
               onClick={() => handleApplyPreset(43.5890, -79.6441, 'Mississauga', '300 City Centre Dr')}
-              className="text-[11px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+              className="text-[11px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
             >
               Mississauga
             </button>
             <button
               type="button"
               onClick={() => handleApplyPreset(49.2827, -123.1207, 'Vancouver', '800 Robson St')}
-              className="text-[11px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+              className="text-[11px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
             >
               Vancouver
             </button>
@@ -340,7 +380,7 @@ export const JobSiteModal: React.FC<JobSiteModalProps> = ({
             options={[
               { value: 'active', label: 'Active (Open for Dispatch)' },
               { value: 'inactive', label: 'Inactive' },
-              { value: 'completed', label: 'Completed' },
+              { value: 'closed', label: 'Closed' },
             ]}
           />
 
@@ -365,6 +405,7 @@ export const JobSiteModal: React.FC<JobSiteModalProps> = ({
             type="submit"
             variant="primary"
             isLoading={loading}
+            disabled={hasNoProjects}
           >
             {initialSite ? 'Save Changes' : 'Create Job Site'}
           </Button>

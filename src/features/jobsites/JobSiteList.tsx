@@ -6,7 +6,7 @@ import { auditService } from '../../services/firebase/firestore/auditService';
 import { JobSiteModal } from './JobSiteModal';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
-import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
+import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import type { JobSite, Project } from '../../types';
@@ -20,11 +20,14 @@ import {
   Loader2,
   AlertCircle,
   ExternalLink,
-  Shield,
-  Compass,
+  Info,
 } from 'lucide-react';
 
-export const JobSiteList: React.FC = () => {
+interface JobSiteListProps {
+  onNavigateToProjects?: () => void;
+}
+
+export const JobSiteList: React.FC<JobSiteListProps> = ({ onNavigateToProjects }) => {
   const { user, userProfile, company, isAdmin, isSuperAdmin, role } = useAuth();
 
   const [jobSites, setJobSites] = useState<JobSite[]>([]);
@@ -41,8 +44,9 @@ export const JobSiteList: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedForEdit, setSelectedForEdit] = useState<JobSite | null>(null);
 
+  // RBAC: SUPER_ADMIN, ADMIN, PROJECT_MANAGER can manage Job Sites per Firestore rules
   const canManageSites =
-    isAdmin || isSuperAdmin || role === 'PROJECT_MANAGER' || role === 'SUPERVISOR';
+    isAdmin || isSuperAdmin || role === 'PROJECT_MANAGER';
 
   const loadData = useCallback(async () => {
     if (!company) return;
@@ -85,8 +89,10 @@ export const JobSiteList: React.FC = () => {
       resourceId: siteData.jobSiteId,
       after: {
         name: siteData.name,
+        projectId: siteData.projectId,
         radiusMeters: siteData.radiusMeters,
         enforceGeofence: siteData.enforceGeofence,
+        status: siteData.status,
       },
     });
 
@@ -110,6 +116,8 @@ export const JobSiteList: React.FC = () => {
     });
   }, [jobSites, statusFilter, projectFilter, searchQuery]);
 
+  const hasNoProjects = projects.length === 0;
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Top Page Header */}
@@ -127,6 +135,8 @@ export const JobSiteList: React.FC = () => {
             variant="primary"
             size="md"
             leftIcon={<Plus className="w-4 h-4" />}
+            disabled={hasNoProjects}
+            title={hasNoProjects ? 'Please create a project first before adding job sites' : undefined}
             onClick={() => {
               setSelectedForEdit(null);
               setIsModalOpen(true);
@@ -136,6 +146,29 @@ export const JobSiteList: React.FC = () => {
           </Button>
         )}
       </PageHeader>
+
+      {/* Project Dependency Guide Banner */}
+      {!loading && hasNoProjects && (
+        <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <strong className="block text-slate-100 font-semibold mb-0.5">Project Dependency Notice</strong>
+              In SITEFLOW, job sites cannot exist without a valid parent Project contract. Create a project contract first before setting up site geofences.
+            </div>
+          </div>
+          {onNavigateToProjects && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onNavigateToProjects}
+              className="shrink-0 self-start sm:self-auto"
+            >
+              Go to Projects
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Error Alert */}
       {error && (
@@ -188,7 +221,7 @@ export const JobSiteList: React.FC = () => {
               <option value="all">All Statuses</option>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
-              <option value="completed">Completed</option>
+              <option value="closed">Closed</option>
             </select>
           </div>
         </div>
@@ -203,14 +236,25 @@ export const JobSiteList: React.FC = () => {
       ) : filteredSites.length === 0 ? (
         <EmptyState
           icon={<MapPin className="w-8 h-8 text-slate-500" />}
-          title={searchQuery || statusFilter !== 'all' ? 'No matching sites' : 'No job sites configured'}
+          title={searchQuery || statusFilter !== 'all' ? 'No matching sites' : hasNoProjects ? 'No projects available' : 'No job sites configured'}
           description={
             searchQuery || statusFilter !== 'all'
               ? 'No job sites match your active search filters.'
+              : hasNoProjects
+              ? 'Create a project contract first before adding construction job site locations.'
               : 'Add your first construction site location to start verifying worker attendance.'
           }
           action={
-            canManageSites && (
+            hasNoProjects && onNavigateToProjects ? (
+              <Button
+                variant="primary"
+                size="sm"
+                leftIcon={<Building className="w-4 h-4" />}
+                onClick={onNavigateToProjects}
+              >
+                Create Project Contract
+              </Button>
+            ) : canManageSites && !hasNoProjects ? (
               <Button
                 variant="primary"
                 size="sm"
@@ -222,7 +266,7 @@ export const JobSiteList: React.FC = () => {
               >
                 Add First Job Site
               </Button>
-            )
+            ) : undefined
           }
         />
       ) : (
@@ -240,7 +284,7 @@ export const JobSiteList: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <Badge
                         size="sm"
-                        variant={site.status === 'active' ? 'success' : 'neutral'}
+                        variant={site.status === 'active' ? 'success' : site.status === 'closed' ? 'neutral' : 'warning'}
                         dot
                       >
                         {site.status}

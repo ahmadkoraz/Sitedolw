@@ -17,6 +17,7 @@ import {
 } from 'firebase/firestore';
 import { db, firebaseStatus } from '../firebaseApp';
 import { handleFirestoreError, OperationType } from '../errorHandler';
+import { stripUndefined } from '../../../utils/cleanFirestoreData';
 import type { JobSite } from '../../../types';
 
 const SANDBOX_JOBSITES_KEY = 'siteflow_sandbox_jobsites';
@@ -78,29 +79,37 @@ export const jobSiteService = {
    */
   async createJobSite(companyId: string, jobSiteData: JobSite): Promise<void> {
     if (!jobSiteData.name?.trim()) throw new Error('Job site name is required.');
+    if (!jobSiteData.projectId?.trim()) {
+      throw new Error('A valid Project reference is required. Job sites must be linked to an existing project contract.');
+    }
     if (!jobSiteData.address?.trim()) throw new Error('Physical address is required.');
-    if (typeof jobSiteData.latitude !== 'number' || isNaN(jobSiteData.latitude)) {
-      throw new Error('Valid GPS latitude coordinate is required.');
+    if (typeof jobSiteData.latitude !== 'number' || isNaN(jobSiteData.latitude) || jobSiteData.latitude < -90 || jobSiteData.latitude > 90) {
+      throw new Error('Valid GPS latitude coordinate between -90 and +90 degrees is required.');
     }
-    if (typeof jobSiteData.longitude !== 'number' || isNaN(jobSiteData.longitude)) {
-      throw new Error('Valid GPS longitude coordinate is required.');
+    if (typeof jobSiteData.longitude !== 'number' || isNaN(jobSiteData.longitude) || jobSiteData.longitude < -180 || jobSiteData.longitude > 180) {
+      throw new Error('Valid GPS longitude coordinate between -180 and +180 degrees is required.');
     }
-    if (!jobSiteData.radiusMeters || jobSiteData.radiusMeters < 10) {
-      throw new Error('Geofence radius must be at least 10 meters.');
+    if (!jobSiteData.radiusMeters || isNaN(jobSiteData.radiusMeters) || jobSiteData.radiusMeters < 10 || jobSiteData.radiusMeters > 5000) {
+      throw new Error('Geofence radius must be a positive number between 10 and 5,000 meters.');
     }
+    if (!jobSiteData.createdBy?.trim()) {
+      throw new Error('Authenticated creator identity (UID) is required.');
+    }
+
+    const cleanData = stripUndefined(jobSiteData);
 
     if (db && firebaseStatus.isConfigured) {
       const path = `companies/${companyId}/jobSites/${jobSiteData.jobSiteId}`;
       try {
         const ref = doc(db, 'companies', companyId, 'jobSites', jobSiteData.jobSiteId);
-        await setDoc(ref, jobSiteData);
+        await setDoc(ref, cleanData);
       } catch (err) {
         handleFirestoreError(err, OperationType.CREATE, path);
       }
     } else {
       const raw = localStorage.getItem(SANDBOX_JOBSITES_KEY);
       const all: JobSite[] = raw ? JSON.parse(raw) : [];
-      all.push(jobSiteData);
+      all.push(cleanData as JobSite);
       localStorage.setItem(SANDBOX_JOBSITES_KEY, JSON.stringify(all));
     }
   },

@@ -185,10 +185,10 @@ export const ProjectList: React.FC = () => {
             >
               <option value="all">All Statuses</option>
               <option value="planning">Planning</option>
-              <option value="active">Active</option>
               <option value="in_progress">In Progress</option>
               <option value="on_hold">On Hold</option>
               <option value="completed">Completed</option>
+              <option value="archived">Archived</option>
             </select>
           </div>
         </div>

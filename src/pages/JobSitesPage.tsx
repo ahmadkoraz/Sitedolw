@@ -1,6 +1,10 @@
 import React from 'react';
 import { JobSiteList } from '../features/jobsites/JobSiteList';
 
-export const JobSitesPage: React.FC = () => {
-  return <JobSiteList />;
+interface JobSitesPageProps {
+  onNavigateToProjects?: () => void;
+}
+
+export const JobSitesPage: React.FC<JobSitesPageProps> = ({ onNavigateToProjects }) => {
+  return <JobSiteList onNavigateToProjects={onNavigateToProjects} />;
 };

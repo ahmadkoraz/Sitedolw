@@ -147,6 +147,12 @@ export const ShiftScheduleView: React.FC = () => {
     }
   };
 
+  const missingDeps: string[] = [];
+  if (employees.length === 0) missingDeps.push('Workforce Members');
+  if (projects.length === 0) missingDeps.push('Projects');
+  if (jobSites.length === 0) missingDeps.push('Job Sites');
+  const hasMissingDeps = missingDeps.length > 0;
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Top Page Header */}
@@ -168,6 +174,8 @@ export const ShiftScheduleView: React.FC = () => {
             variant="primary"
             size="md"
             leftIcon={<Plus className="w-4 h-4" />}
+            disabled={hasMissingDeps}
+            title={hasMissingDeps ? `Missing prerequisites: ${missingDeps.join(', ')}` : undefined}
             onClick={() => {
               setSelectedForEdit(null);
               setIsModalOpen(true);
@@ -177,6 +185,17 @@ export const ShiftScheduleView: React.FC = () => {
           </Button>
         )}
       </PageHeader>
+
+      {/* Dependency Notice */}
+      {!loading && hasMissingDeps && canManageShifts && (
+        <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-300 flex items-start gap-2.5">
+          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <div>
+            <strong className="block text-slate-100 font-semibold mb-0.5">Dispatch Prerequisites Required</strong>
+            Before dispatching shifts, ensure your company has registered: {missingDeps.join(', ')}. Each shift requires an authorized worker, linked project, and physical job site location.
+          </div>
+        </div>
+      )}
 
       {/* Error Alert */}
       {error && (

@@ -182,7 +182,7 @@ const MainShell: React.FC = () => {
       case 'shifts':
         return <ShiftsPage />;
       case 'jobsites':
-        return <JobSitesPage />;
+        return <JobSitesPage onNavigateToProjects={() => setActiveTab('projects')} />;
       case 'projects':
         return <ProjectsPage />;
       case 'employees':
