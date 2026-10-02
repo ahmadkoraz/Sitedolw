@@ -3,12 +3,13 @@ import { useAuth } from '../auth/AuthContext';
 import { projectService } from '../../services/firebase/firestore/projectService';
 import { jobSiteService } from '../../services/firebase/firestore/jobSiteService';
 import { attendanceService } from '../../services/firebase/firestore/attendanceService';
+import { employeeService } from '../../services/firebase/firestore/employeeService';
 import {
   getPurposeLimitedPosition,
   verifyGeofence,
   formatDistance,
 } from '../../utils/geofence';
-import type { Project, JobSite, TimeEntry } from '../../types';
+import type { Project, JobSite, TimeEntry, Employee } from '../../types';
 import {
   Clock,
   MapPin,
@@ -33,6 +34,7 @@ export const TimeClockCard: React.FC<TimeClockCardProps> = ({ onAttendanceChange
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [jobSites, setJobSites] = useState<JobSite[]>([]);
+  const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [selectedJobSiteId, setSelectedJobSiteId] = useState('');
 
@@ -58,14 +60,21 @@ export const TimeClockCard: React.FC<TimeClockCardProps> = ({ onAttendanceChange
 
   // 1. Load active time entry and available projects/sites
   const loadInitialData = useCallback(async () => {
-    if (!company || !userProfile) return;
+    if (!company || !userProfile || !user) return;
     setLoading(true);
     try {
-      const [projList, siteList, currentActive] = await Promise.all([
+      const [projList, siteList, empRecord] = await Promise.all([
         projectService.getProjectsByCompany(company.companyId),
         jobSiteService.getJobSitesByCompany(company.companyId),
-        user ? attendanceService.getActiveTimeEntry(company.companyId, { userId: user.uid, employeeId: userProfile.uid }) : Promise.resolve(null),
+        employeeService.getEmployeeByUserId(company.companyId, user.uid),
       ]);
+
+      setCurrentEmployee(empRecord);
+      const effectiveEmpId = empRecord?.employeeId || userProfile.uid;
+      const currentActive = await attendanceService.getActiveTimeEntry(company.companyId, {
+        userId: user.uid,
+        employeeId: effectiveEmpId,
+      });
 
       setProjects(projList);
       setJobSites(siteList);
@@ -83,7 +92,7 @@ export const TimeClockCard: React.FC<TimeClockCardProps> = ({ onAttendanceChange
     } finally {
       setLoading(false);
     }
-  }, [company, userProfile]);
+  }, [company, userProfile, user]);
 
   useEffect(() => {
     loadInitialData();
@@ -159,7 +168,7 @@ export const TimeClockCard: React.FC<TimeClockCardProps> = ({ onAttendanceChange
       // 2. Clock in service call
       const entry = await attendanceService.clockIn({
         companyId: company.companyId,
-        employeeId: userProfile.uid,
+        employeeId: currentEmployee?.employeeId || userProfile.uid,
         userId: user.uid,
         actorRole: role || 'EMPLOYEE',
         projectId: selectedProjectId || selectedSite.projectId,

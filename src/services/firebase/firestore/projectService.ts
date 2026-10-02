@@ -76,6 +76,11 @@ export const projectService = {
     if (!projectData.code?.trim()) throw new Error('Project code is required.');
     if (!projectData.createdBy?.trim()) throw new Error('Authenticated creator identity (UID) is required.');
 
+    const validStatuses = ['planning', 'in_progress', 'on_hold', 'completed', 'archived'];
+    if (!validStatuses.includes(projectData.status)) {
+      throw new Error(`Invalid project status '${projectData.status}'. Must be one of: ${validStatuses.join(', ')}`);
+    }
+
     const cleanData = stripUndefined(projectData);
 
     if (db && firebaseStatus.isConfigured) {
@@ -102,6 +107,13 @@ export const projectService = {
     projectId: string,
     updates: Partial<Omit<Project, 'projectId' | 'companyId' | 'createdAt' | 'createdBy'>>
   ): Promise<void> {
+    if (updates.status) {
+      const validStatuses = ['planning', 'in_progress', 'on_hold', 'completed', 'archived'];
+      if (!validStatuses.includes(updates.status)) {
+        throw new Error(`Invalid project status '${updates.status}'. Must be one of: ${validStatuses.join(', ')}`);
+      }
+    }
+
     const payload = {
       ...updates,
       updatedAt: new Date().toISOString(),

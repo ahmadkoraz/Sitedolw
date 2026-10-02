@@ -13,6 +13,7 @@ import {
   updateDoc,
   query,
   orderBy,
+  where,
 } from 'firebase/firestore';
 import { db, firebaseStatus } from '../firebaseApp';
 import { handleFirestoreError, OperationType } from '../errorHandler';
@@ -43,6 +44,29 @@ export const employeeService = {
         return allEmployees.filter((e) => e.companyId === companyId);
       }
       return [];
+    }
+  },
+
+  /**
+   * Fetch an employee record by authenticated Firebase Auth userId
+   */
+  async getEmployeeByUserId(companyId: string, userId: string): Promise<Employee | null> {
+    if (db && firebaseStatus.isConfigured) {
+      const path = `companies/${companyId}/employees`;
+      try {
+        const ref = collection(db, 'companies', companyId, 'employees');
+        const q = query(ref, where('userId', '==', userId));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          return snap.docs[0].data() as Employee;
+        }
+        return null;
+      } catch (err) {
+        handleFirestoreError(err, OperationType.LIST, path);
+      }
+    } else {
+      const employees = await this.getEmployeesByCompany(companyId);
+      return employees.find((e) => e.userId === userId) || null;
     }
   },
 

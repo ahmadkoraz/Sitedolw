@@ -89,11 +89,20 @@ export const jobSiteService = {
     if (typeof jobSiteData.longitude !== 'number' || isNaN(jobSiteData.longitude) || jobSiteData.longitude < -180 || jobSiteData.longitude > 180) {
       throw new Error('Valid GPS longitude coordinate between -180 and +180 degrees is required.');
     }
-    if (!jobSiteData.radiusMeters || isNaN(jobSiteData.radiusMeters) || jobSiteData.radiusMeters < 10 || jobSiteData.radiusMeters > 5000) {
-      throw new Error('Geofence radius must be a positive number between 10 and 5,000 meters.');
+    if (
+      typeof jobSiteData.radiusMeters !== 'number' ||
+      !Number.isFinite(jobSiteData.radiusMeters) ||
+      jobSiteData.radiusMeters < 25 ||
+      jobSiteData.radiusMeters > 2000
+    ) {
+      throw new Error('Geofence radius must be a finite number between 25 and 2,000 meters.');
     }
     if (!jobSiteData.createdBy?.trim()) {
       throw new Error('Authenticated creator identity (UID) is required.');
+    }
+    const validStatuses = ['active', 'inactive', 'closed'];
+    if (!validStatuses.includes(jobSiteData.status)) {
+      throw new Error(`Invalid job site status '${jobSiteData.status}'. Must be one of: ${validStatuses.join(', ')}`);
     }
 
     const cleanData = stripUndefined(jobSiteData);
@@ -122,6 +131,28 @@ export const jobSiteService = {
     jobSiteId: string,
     updates: Partial<Omit<JobSite, 'jobSiteId' | 'companyId' | 'createdAt' | 'createdBy'>>
   ): Promise<void> {
+    if (updates.status) {
+      const validStatuses = ['active', 'inactive', 'closed'];
+      if (!validStatuses.includes(updates.status)) {
+        throw new Error(`Invalid job site status '${updates.status}'. Must be one of: ${validStatuses.join(', ')}`);
+      }
+    }
+    if (updates.latitude !== undefined) {
+      if (typeof updates.latitude !== 'number' || !Number.isFinite(updates.latitude) || updates.latitude < -90 || updates.latitude > 90) {
+        throw new Error('Valid GPS latitude coordinate between -90 and +90 degrees is required.');
+      }
+    }
+    if (updates.longitude !== undefined) {
+      if (typeof updates.longitude !== 'number' || !Number.isFinite(updates.longitude) || updates.longitude < -180 || updates.longitude > 180) {
+        throw new Error('Valid GPS longitude coordinate between -180 and +180 degrees is required.');
+      }
+    }
+    if (updates.radiusMeters !== undefined) {
+      if (typeof updates.radiusMeters !== 'number' || !Number.isFinite(updates.radiusMeters) || updates.radiusMeters < 25 || updates.radiusMeters > 2000) {
+        throw new Error('Geofence radius must be a finite number between 25 and 2,000 meters.');
+      }
+    }
+
     const payload = {
       ...updates,
       updatedAt: new Date().toISOString(),

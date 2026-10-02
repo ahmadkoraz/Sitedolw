@@ -99,11 +99,26 @@ export const shiftService = {
    * Create a scheduled shift
    */
   async createShift(companyId: string, shiftData: Shift): Promise<void> {
-    if (!shiftData.employeeId) throw new Error('Worker assignment is required for shift.');
-    if (!shiftData.projectId) throw new Error('Project selection is required for shift.');
-    if (!shiftData.jobSiteId) throw new Error('Job site selection is required for shift.');
+    if (!shiftData.employeeId?.trim()) throw new Error('Worker assignment is required for shift.');
+    if (!shiftData.projectId?.trim()) throw new Error('Project selection is required for shift.');
+    if (!shiftData.jobSiteId?.trim()) throw new Error('Job site selection is required for shift.');
     if (!shiftData.startTime || !shiftData.endTime) {
       throw new Error('Shift start and end times are required.');
+    }
+    const startMs = new Date(shiftData.startTime).getTime();
+    const endMs = new Date(shiftData.endTime).getTime();
+    if (isNaN(startMs) || isNaN(endMs)) {
+      throw new Error('Shift start and end times must be valid ISO date strings.');
+    }
+    if (startMs >= endMs) {
+      throw new Error('Shift start time must be chronologically earlier than shift end time.');
+    }
+    if (!shiftData.assignedBy?.trim()) {
+      throw new Error('Operator identity (UID) is required to assign a shift.');
+    }
+    const validStatuses: ShiftStatus[] = ['scheduled', 'in_progress', 'completed', 'cancelled', 'absent'];
+    if (!validStatuses.includes(shiftData.status)) {
+      throw new Error(`Invalid shift status '${shiftData.status}'. Must be one of: ${validStatuses.join(', ')}`);
     }
 
     if (db && firebaseStatus.isConfigured) {
@@ -133,6 +148,20 @@ export const shiftService = {
     shiftId: string,
     updates: Partial<Omit<Shift, 'shiftId' | 'companyId' | 'createdAt'>>
   ): Promise<void> {
+    if (updates.status) {
+      const validStatuses: ShiftStatus[] = ['scheduled', 'in_progress', 'completed', 'cancelled', 'absent'];
+      if (!validStatuses.includes(updates.status)) {
+        throw new Error(`Invalid shift status '${updates.status}'. Must be one of: ${validStatuses.join(', ')}`);
+      }
+    }
+    if (updates.startTime && updates.endTime) {
+      const startMs = new Date(updates.startTime).getTime();
+      const endMs = new Date(updates.endTime).getTime();
+      if (startMs >= endMs) {
+        throw new Error('Shift start time must be chronologically earlier than shift end time.');
+      }
+    }
+
     const payload = {
       ...updates,
       updatedAt: new Date().toISOString(),

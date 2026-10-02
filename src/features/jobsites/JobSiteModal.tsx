@@ -124,16 +124,21 @@ export const JobSiteModal: React.FC<JobSiteModalProps> = ({
       setError('Physical street address is required.');
       return;
     }
-    if (isNaN(latitude) || latitude < -90 || latitude > 90) {
+    if (typeof latitude !== 'number' || !Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
       setError('Latitude must be a valid coordinate between -90 and +90 degrees.');
       return;
     }
-    if (isNaN(longitude) || longitude < -180 || longitude > 180) {
+    if (typeof longitude !== 'number' || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
       setError('Longitude must be a valid coordinate between -180 and +180 degrees.');
       return;
     }
-    if (isNaN(radiusMeters) || radiusMeters < 10 || radiusMeters > 5000) {
-      setError('Geofence radius must be a positive number between 10 and 5,000 meters.');
+    if (
+      typeof radiusMeters !== 'number' ||
+      !Number.isFinite(radiusMeters) ||
+      radiusMeters < 25 ||
+      radiusMeters > 2000
+    ) {
+      setError('Geofence radius must be a positive number between 25 and 2,000 meters.');
       return;
     }
 
@@ -344,7 +349,7 @@ export const JobSiteModal: React.FC<JobSiteModalProps> = ({
             <input
               type="range"
               min="25"
-              max="500"
+              max="2000"
               step="25"
               value={radiusMeters}
               onChange={(e) => setRadiusMeters(parseInt(e.target.value))}
@@ -352,8 +357,8 @@ export const JobSiteModal: React.FC<JobSiteModalProps> = ({
             />
             <div className="flex justify-between text-[10px] text-slate-500 mt-1">
               <span>25m (Tight Building)</span>
-              <span>150m (Standard Site)</span>
-              <span>500m (Large Infrastructure)</span>
+              <span>250m (Standard Site)</span>
+              <span>2,000m (Max Allowed)</span>
             </div>
           </div>
 

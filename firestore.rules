@@ -308,14 +308,21 @@ service cloud.firestore {
                       isProjectManager() &&
                       isValidId(projectId) &&
                       request.resource.data.companyId == companyId &&
-                      request.resource.data.projectId == projectId;
+                      request.resource.data.projectId == projectId &&
+                      request.resource.data.createdBy == request.auth.uid &&
+                      request.resource.data.status in ['planning', 'in_progress', 'on_hold', 'completed', 'archived'] &&
+                      request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 200 &&
+                      request.resource.data.code is string && request.resource.data.code.size() > 0 && request.resource.data.code.size() <= 50;
 
         allow update: if isSignedIn() &&
                       isMemberOfCompany(companyId) &&
                       isProjectManager() &&
                       request.resource.data.companyId == resource.data.companyId &&
                       request.resource.data.projectId == resource.data.projectId &&
-                      request.resource.data.createdAt == resource.data.createdAt;
+                      request.resource.data.createdBy == resource.data.createdBy &&
+                      request.resource.data.createdAt == resource.data.createdAt &&
+                      request.resource.data.status in ['planning', 'in_progress', 'on_hold', 'completed', 'archived'] &&
+                      request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 200;
 
         allow delete: if false;
       }
@@ -331,6 +338,19 @@ service cloud.firestore {
                       isValidId(jobSiteId) &&
                       request.resource.data.companyId == companyId &&
                       request.resource.data.jobSiteId == jobSiteId &&
+                      request.resource.data.createdBy == request.auth.uid &&
+                      request.resource.data.status in ['active', 'inactive', 'closed'] &&
+                      request.resource.data.latitude is number &&
+                      request.resource.data.latitude >= -90 &&
+                      request.resource.data.latitude <= 90 &&
+                      request.resource.data.longitude is number &&
+                      request.resource.data.longitude >= -180 &&
+                      request.resource.data.longitude <= 180 &&
+                      request.resource.data.radiusMeters is number &&
+                      request.resource.data.radiusMeters >= 25 &&
+                      request.resource.data.radiusMeters <= 2000 &&
+                      request.resource.data.projectId is string &&
+                      request.resource.data.projectId.size() > 0 &&
                       exists(/databases/$(database)/documents/companies/$(companyId)/projects/$(request.resource.data.projectId)) &&
                       get(/databases/$(database)/documents/companies/$(companyId)/projects/$(request.resource.data.projectId)).data.companyId == companyId;
 
@@ -341,7 +361,18 @@ service cloud.firestore {
                       request.resource.data.companyId == resource.data.companyId &&
                       request.resource.data.jobSiteId == resource.data.jobSiteId &&
                       request.resource.data.projectId == resource.data.projectId &&
+                      request.resource.data.createdBy == resource.data.createdBy &&
                       request.resource.data.createdAt == resource.data.createdAt &&
+                      request.resource.data.status in ['active', 'inactive', 'closed'] &&
+                      request.resource.data.latitude is number &&
+                      request.resource.data.latitude >= -90 &&
+                      request.resource.data.latitude <= 90 &&
+                      request.resource.data.longitude is number &&
+                      request.resource.data.longitude >= -180 &&
+                      request.resource.data.longitude <= 180 &&
+                      request.resource.data.radiusMeters is number &&
+                      request.resource.data.radiusMeters >= 25 &&
+                      request.resource.data.radiusMeters <= 2000 &&
                       exists(/databases/$(database)/documents/companies/$(companyId)/projects/$(request.resource.data.projectId)) &&
                       get(/databases/$(database)/documents/companies/$(companyId)/projects/$(request.resource.data.projectId)).data.companyId == companyId;
 
@@ -364,6 +395,8 @@ service cloud.firestore {
                       isValidId(shiftId) &&
                       request.resource.data.companyId == companyId &&
                       request.resource.data.shiftId == shiftId &&
+                      request.resource.data.assignedBy == request.auth.uid &&
+                      request.resource.data.status in ['scheduled', 'in_progress', 'completed', 'cancelled', 'absent'] &&
                       isValidShiftData(companyId, request.resource.data);
 
         allow update: if isSignedIn() &&
@@ -372,6 +405,7 @@ service cloud.firestore {
                       request.resource.data.companyId == resource.data.companyId &&
                       request.resource.data.shiftId == resource.data.shiftId &&
                       request.resource.data.createdAt == resource.data.createdAt &&
+                      request.resource.data.status in ['scheduled', 'in_progress', 'completed', 'cancelled', 'absent'] &&
                       isValidShiftData(companyId, request.resource.data);
 
         allow delete: if false;
